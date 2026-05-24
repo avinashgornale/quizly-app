@@ -633,6 +633,9 @@ const StudentApp = ({ db, setDb, user, onLogout }) => {
   const [answers, setAnswers]               = useState({});
   const [submitted, setSubmitted]           = useState(false);
   const [result, setResult]                 = useState(null);
+  const [studentName, setStudentName] = useState("");
+  const [studentUSN, setStudentUSN] = useState("");
+  const [registered, setRegistered] = useState(false);
 
   const myEnrollments  = db.enrollments.filter(e => e.studentId === user.id);
   const myCourseIds    = myEnrollments.map(e => e.courseId);
@@ -783,6 +786,61 @@ const StudentApp = ({ db, setDb, user, onLogout }) => {
       <Sidebar user={user} activeTab={tab} setTab={t => { setTab(t); setSelectedCourse(null); }} tabs={tabs} onLogout={onLogout} />
       <main style={{ flex: 1, padding: 32, background: "#f8fafc", minHeight: "100vh" }}>
 
+        {!registered ? (
+  <div style={{ maxWidth: 400, margin: "60px auto", background: "#fff", padding: 30, borderRadius: 12 }}>
+    <h2 style={{ marginBottom: 20 }}>Student Registration</h2>
+
+    <input
+      type="text"
+      placeholder="Enter Name"
+      value={studentName}
+      onChange={(e) => setStudentName(e.target.value)}
+      style={{
+        width: "100%",
+        padding: 12,
+        marginBottom: 15,
+        borderRadius: 8,
+        border: "1px solid #ccc"
+      }}
+    />
+
+    <input
+      type="text"
+      placeholder="Enter USN"
+      value={studentUSN}
+      onChange={(e) => setStudentUSN(e.target.value)}
+      style={{
+        width: "100%",
+        padding: 12,
+        marginBottom: 20,
+        borderRadius: 8,
+        border: "1px solid #ccc"
+      }}
+    />
+
+    <button
+      onClick={() => {
+        if (!studentName || !studentUSN) {
+          alert("Please enter all details");
+          return;
+        }
+        setRegistered(true);
+      }}
+      style={{
+        width: "100%",
+        padding: 12,
+        background: "#0f172a",
+        color: "#fff",
+        border: "none",
+        borderRadius: 8,
+        cursor: "pointer"
+      }}
+    >
+      Continue to Quiz
+    </button>
+  </div>
+) : (
+
         {/* JOIN TAB */}
         {tab === "join" && (
           <div style={{ maxWidth: 520, margin: "0 auto" }}>
@@ -931,6 +989,7 @@ const StudentApp = ({ db, setDb, user, onLogout }) => {
             }
           </>
         )}
+      )}
       </main>
     </div>
   );
