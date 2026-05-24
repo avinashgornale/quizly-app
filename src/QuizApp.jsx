@@ -136,7 +136,7 @@ const QRModal = ({ title, code, description, onClose }) => {
           new window.QRious({
             element: canvasRef.current,
             value: `https://polite-beijinho-e4aef4.netlify.app/?code=${code}`,
-            size: 280,
+            size: 280,git
             level: 'H',
             background: '#ffffff',
             foreground: '#0f172a',
