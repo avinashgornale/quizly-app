@@ -842,57 +842,183 @@ const StudentApp = ({ db, setDb, user, onLogout }) => {
 ) : (
 
         {/* JOIN TAB */}
-        {tab === "join" && (
-          <div style={{ maxWidth: 520, margin: "0 auto" }}>
-            <h2 style={{ margin: "0 0 6px", fontWeight: 800, fontSize: 26, color: "#0f172a" }}>Join via QR Code</h2>
-            <p style={{ margin: "0 0 32px", color: "#64748b" }}>Scan the QR code shared by your teacher, or enter the code manually below.</p>
+{tab === "join" && (
+  <>
+    {!registered ? (
+      <div style={{ maxWidth: 420, margin: "40px auto" }}>
+        <Card>
+          <h2
+            style={{
+              marginBottom: 20,
+              color: "#0f172a",
+              fontSize: 24,
+              fontWeight: 800,
+            }}
+          >
+            Student Registration
+          </h2>
 
-            {/* Scan illustration */}
-            <Card style={{ textAlign: "center", marginBottom: 28, padding: 36, background: "linear-gradient(135deg,#0f172a,#1e3a5f)", border: "none" }}>
-              <div style={{ fontSize: 64, marginBottom: 12 }}>📱</div>
-              <div style={{ color: "#94a3b8", fontSize: 14, marginBottom: 6 }}>Point your camera at the QR code</div>
-              <div style={{ color: "#64748b", fontSize: 12 }}>or enter the code below</div>
-            </Card>
+          <Input
+            label="Student Name"
+            value={studentName}
+            onChange={(e) => setStudentName(e.target.value)}
+            placeholder="Enter your full name"
+          />
 
-            {/* Manual code entry */}
-            <Card>
-              <h3 style={{ margin: "0 0 16px", fontWeight: 700, fontSize: 16, color: "#1e293b" }}>Enter Code Manually</h3>
-              <div style={{ display: "flex", gap: 10 }}>
-                <input
-                  value={codeInput}
-                  onChange={e => { setCodeInput(e.target.value.toUpperCase()); setCodeError(""); }}
-                  onKeyDown={e => e.key === "Enter" && handleJoin()}
-                  placeholder="e.g. CRS-MATH1 or QZ-ALG01"
-                  style={{ flex: 1, padding: "11px 14px", borderRadius: 8, border: codeError ? "2px solid #dc2626" : "1.5px solid #d1d5db", fontSize: 15, fontFamily: "monospace", fontWeight: 700, letterSpacing: 1, textTransform: "uppercase", outline: "none" }}
-                />
-                <Btn size="md" onClick={handleJoin}>Join →</Btn>
-              </div>
-              {codeError && <p style={{ color: "#dc2626", fontSize: 13, margin: "10px 0 0" }}>⚠ {codeError}</p>}
-              <p style={{ fontSize: 12, color: "#94a3b8", margin: "14px 0 0" }}>
-                Use a <strong>CRS-XXXXX</strong> code to join a full course, or a <strong>QZ-XXXXX</strong> code to directly attempt a quiz.
-              </p>
+          <Input
+            label="USN"
+            value={studentUSN}
+            onChange={(e) => setStudentUSN(e.target.value)}
+            placeholder="Enter your USN"
+          />
 
-              {/* Demo hint */}
-              <div style={{ marginTop: 20, padding: 14, background: "#f1f5f9", borderRadius: 10, border: "1px solid #e2e8f0" }}>
-                <div style={{ fontSize: 12, fontWeight: 700, color: "#475569", marginBottom: 10, textTransform: "uppercase", letterSpacing: 0.5 }}>Demo Codes to Try</div>
-                <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-                  {[
-                    { code: "CRS-MATH1", label: "Mathematics 101" },
-                    { code: "CRS-PHYS2", label: "Physics" },
-                    { code: "CRS-DATA3", label: "Data Structures" },
-                    { code: "QZ-ALG01",  label: "Algebra Quiz" },
-                    { code: "QZ-NEW02",  label: "Newton's Quiz" },
-                  ].map(d => (
-                    <button key={d.code} onClick={() => { setCodeInput(d.code); setCodeError(""); }}
-                      style={{ background: "#fff", border: "1.5px solid #e2e8f0", borderRadius: 8, padding: "5px 10px", cursor: "pointer", fontFamily: "monospace", fontWeight: 700, fontSize: 12, color: "#1e293b" }}>
-                      {d.code}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </Card>
+          <button
+            onClick={() => {
+              if (!studentName || !studentUSN) {
+                alert("Please enter all details");
+                return;
+              }
+
+              setRegistered(true);
+            }}
+            style={{
+              width: "100%",
+              padding: 12,
+              background: "#0f172a",
+              color: "#fff",
+              border: "none",
+              borderRadius: 8,
+              cursor: "pointer",
+              fontWeight: 700,
+            }}
+          >
+            Continue to Quiz
+          </button>
+        </Card>
+      </div>
+    ) : (
+      <div style={{ maxWidth: 520, margin: "0 auto" }}>
+        <h2
+          style={{
+            margin: "0 0 6px",
+            fontWeight: 800,
+            fontSize: 26,
+            color: "#0f172a",
+          }}
+        >
+          Join via QR Code
+        </h2>
+
+        <p
+          style={{
+            margin: "0 0 32px",
+            color: "#64748b",
+          }}
+        >
+          Scan the QR code shared by your teacher, or enter the code manually below.
+        </p>
+
+        <Card
+          style={{
+            textAlign: "center",
+            marginBottom: 28,
+            padding: 36,
+            background:
+              "linear-gradient(135deg,#f0f9ff,#e0f2fe)",
+          }}
+        >
+          <div style={{ fontSize: 64, marginBottom: 12 }}>
+            📱
           </div>
-        )}
+
+          <div
+            style={{
+              color: "#94a3b8",
+              fontSize: 14,
+              marginBottom: 6,
+            }}
+          >
+            Point your camera at the QR code
+          </div>
+
+          <div
+            style={{
+              color: "#64748b",
+              fontSize: 12,
+            }}
+          >
+            or enter the code below
+          </div>
+        </Card>
+
+        <Card>
+          <h3
+            style={{
+              margin: "0 0 16px",
+              fontWeight: 700,
+              fontSize: 16,
+              color: "#1e293b",
+            }}
+          >
+            Enter Code Manually
+          </h3>
+
+          <div style={{ display: "flex", gap: 10 }}>
+            <input
+              value={codeInput}
+              onChange={(e) => {
+                setCodeInput(e.target.value.toUpperCase());
+                setCodeError("");
+              }}
+              onKeyDown={(e) =>
+                e.key === "Enter" && handleJoin()
+              }
+              placeholder="e.g. CRS-MATH1 or QZ-ALG01"
+              style={{
+                flex: 1,
+                padding: "11px 14px",
+                borderRadius: 8,
+                border: codeError
+                  ? "2px solid #dc2626"
+                  : "1.5px solid #cbd5e1",
+                fontSize: 15,
+                fontFamily: "inherit",
+              }}
+            />
+
+            <Btn size="md" onClick={handleJoin}>
+              Join →
+            </Btn>
+          </div>
+
+          {codeError && (
+            <p
+              style={{
+                color: "#dc2626",
+                fontSize: 13,
+                margin: "10px 0 0",
+              }}
+            >
+              ⚠ {codeError}
+            </p>
+          )}
+
+          <p
+            style={{
+              fontSize: 12,
+              color: "#94a3b8",
+              margin: "14px 0 0",
+            }}
+          >
+            Use a <strong>CRS-XXXXX</strong> code to join a full
+            course, or a <strong>QZ-XXXXX</strong> code to take a
+            single quiz.
+          </p>
+        </Card>
+      </div>
+    )}
+  </>
+)}
 
         {/* MY COURSES TAB */}
         {tab === "mycourses" && !selectedCourse && (
