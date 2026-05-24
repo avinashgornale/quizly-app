@@ -663,7 +663,7 @@ const StudentApp = ({ db, setDb, user, onLogout }) => {
     // Check quiz code
     const quiz = db.quizzes.find(q => q.joinCode.toUpperCase() === code);
     if (quiz) {
-      const parentCourse = db.courses.find(c => c.id === quiz.courseId);
+
       // Auto-enroll in parent course
       const already = myEnrollments.find(e => e.courseId === quiz.courseId);
       if (!already) {
