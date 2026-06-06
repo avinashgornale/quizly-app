@@ -44,7 +44,7 @@ const SEED = {
     },
   ],
   attempts: [],
-  enrollments: [], // { studentId, courseId }
+  enrollments: [],
 };
 
 // ─── Shared UI ────────────────────────────────────────────────────────────────
@@ -108,6 +108,96 @@ const Stat = ({ label, value, icon, color = "#1e293b" }) => (
   </Card>
 );
 
+// ─── Credentials Panel (admin only, post-login) ───────────────────────────────
+const maskEmail = (email) => {
+  const [local, domain] = email.split("@");
+  return local.slice(0, 2) + "*".repeat(Math.max(3, local.length - 2)) + "@" + domain;
+};
+
+const CredentialsPanel = ({ db }) => {
+  const [revealed, setRevealed] = useState({});
+  const [activeRole, setActiveRole] = useState("teacher");
+
+  const toggle = (id) => setRevealed(prev => ({ ...prev, [id]: !prev[id] }));
+  const revealAll = () => {
+    const ids = db.users.filter(u => u.role === activeRole).reduce((acc, u) => ({ ...acc, [u.id]: true }), {});
+    setRevealed(ids);
+  };
+  const hideAll = () => setRevealed({});
+
+  const users = db.users.filter(u => u.role === activeRole);
+
+  const tabStyle = (role) => ({
+    padding: "7px 18px", borderRadius: 8, fontWeight: 600, fontSize: 13,
+    cursor: "pointer", border: "1.5px solid",
+    background: activeRole === role ? roleColor[role] : "#fff",
+    color: activeRole === role ? "#fff" : roleColor[role],
+    borderColor: roleColor[role],
+    transition: "all .15s",
+  });
+
+  return (
+    <>
+      {/* Warning banner */}
+      <div style={{ background: "#fef3c7", border: "1.5px solid #fbbf24", borderRadius: 10, padding: "10px 16px", marginBottom: 24, display: "flex", alignItems: "center", gap: 10 }}>
+        <span style={{ fontSize: 18 }}>🔒</span>
+        <span style={{ fontSize: 13, color: "#92400e", fontWeight: 500 }}>
+          This section is visible to admins only. Login credentials are sensitive — handle with care.
+        </span>
+      </div>
+
+      {/* Role tabs */}
+      <div style={{ display: "flex", gap: 10, marginBottom: 20, alignItems: "center" }}>
+        <button style={tabStyle("teacher")} onClick={() => { setActiveRole("teacher"); setRevealed({}); }}>🧑‍🏫 Teachers</button>
+        <button style={tabStyle("student")} onClick={() => { setActiveRole("student"); setRevealed({}); }}>🎓 Students</button>
+        <div style={{ marginLeft: "auto", display: "flex", gap: 8 }}>
+          <Btn size="sm" variant="ghost" onClick={revealAll}>👁 Show All</Btn>
+          <Btn size="sm" variant="ghost" onClick={hideAll}>🙈 Hide All</Btn>
+        </div>
+      </div>
+
+      {/* Table */}
+      <Card style={{ padding: 0, overflow: "hidden" }}>
+        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
+          <thead>
+            <tr style={{ background: "#f8fafc", borderBottom: "1.5px solid #e2e8f0" }}>
+              {["Name", "Email", "Password", "Role", "Reveal"].map(h => (
+                <th key={h} style={{ padding: "11px 16px", textAlign: "left", fontWeight: 700, fontSize: 12, color: "#64748b", textTransform: "uppercase", letterSpacing: 0.5 }}>{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {users.map((u, i) => {
+              const show = !!revealed[u.id];
+              return (
+                <tr key={u.id} style={{ borderBottom: i < users.length - 1 ? "1px solid #f1f5f9" : "none", background: show ? "#f0fdf4" : "#fff", transition: "background .2s" }}>
+                  <td style={{ padding: "12px 16px", fontWeight: 600, color: "#1e293b" }}>{u.name}</td>
+                  <td style={{ padding: "12px 16px", fontFamily: "monospace", fontSize: 13, color: show ? "#0f172a" : "#94a3b8" }}>
+                    {show ? u.email : maskEmail(u.email)}
+                  </td>
+                  <td style={{ padding: "12px 16px", fontFamily: "monospace", fontSize: 13, color: show ? "#0f172a" : "#94a3b8" }}>
+                    {show ? u.password : "••••••••"}
+                  </td>
+                  <td style={{ padding: "12px 16px" }}><Badge role={u.role} /></td>
+                  <td style={{ padding: "12px 16px" }}>
+                    <button
+                      onClick={() => toggle(u.id)}
+                      title={show ? "Hide credentials" : "Reveal credentials"}
+                      style={{ background: show ? "#dcfce7" : "#f1f5f9", border: "none", borderRadius: 6, padding: "5px 12px", cursor: "pointer", fontSize: 13, fontWeight: 600, color: show ? "#059669" : "#475569", transition: "all .15s" }}
+                    >
+                      {show ? "👁 Hide" : "🔍 Show"}
+                    </button>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </Card>
+    </>
+  );
+};
+
 // ─── QR Code Modal ────────────────────────────────────────────────────────────
 const QRModal = ({ title, code, description, onClose }) => {
   const [copied, setCopied] = useState(false);
@@ -115,8 +205,6 @@ const QRModal = ({ title, code, description, onClose }) => {
 
   useEffect(() => {
     if (!canvasRef.current) return;
-
-    // Load QRious library from CDN
     if (window.QRious) {
       generateQR();
     } else {
@@ -124,27 +212,19 @@ const QRModal = ({ title, code, description, onClose }) => {
       script.src = 'https://cdnjs.cloudflare.com/ajax/libs/qrious/4.0.2/qrious.min.js';
       script.async = true;
       script.onerror = () => console.error('Failed to load QR library');
-      script.onload = () => {
-        setTimeout(generateQR, 100);
-      };
+      script.onload = () => { setTimeout(generateQR, 100); };
       document.body.appendChild(script);
     }
-
     function generateQR() {
       try {
         if (window.QRious) {
           new window.QRious({
             element: canvasRef.current,
             value: `https://quizly-live-app.netlify.app/?code=${code}`,
-            size: 280,
-            level: 'H',
-            background: '#ffffff',
-            foreground: '#0f172a',
+            size: 280, level: 'H', background: '#ffffff', foreground: '#0f172a',
           });
         }
-      } catch (e) {
-        console.error('QR Generation Error:', e);
-      }
+      } catch (e) { console.error('QR Generation Error:', e); }
     }
   }, [code]);
 
@@ -158,13 +238,9 @@ const QRModal = ({ title, code, description, onClose }) => {
     <Modal title={`QR Code — ${title}`} onClose={onClose}>
       <div style={{ textAlign: "center" }}>
         <p style={{ color: "#64748b", fontSize: 14, margin: "0 0 20px" }}>{description}</p>
-
-        {/* QR Code Canvas */}
         <div style={{ display: "inline-block", padding: 20, background: "#fff", borderRadius: 16, border: "3px solid #0f172a", marginBottom: 24, boxShadow: "0 10px 30px rgba(0,0,0,.15)" }}>
           <canvas ref={canvasRef} style={{ display: "block", borderRadius: 8 }} />
         </div>
-
-        {/* Join Code */}
         <div style={{ background: "#0f172a", borderRadius: 12, padding: "16px 24px", marginBottom: 16, display: "inline-flex", alignItems: "center", gap: 16 }}>
           <div>
             <div style={{ fontSize: 11, color: "#64748b", fontWeight: 700, textTransform: "uppercase", letterSpacing: 1, marginBottom: 4 }}>Join Code</div>
@@ -174,10 +250,7 @@ const QRModal = ({ title, code, description, onClose }) => {
             {copied ? "✓ Copied" : "Copy"}
           </button>
         </div>
-
-        <p style={{ fontSize: 13, color: "#94a3b8", margin: 0 }}>
-          Students scan this QR code or enter the code manually to access this content.
-        </p>
+        <p style={{ fontSize: 13, color: "#94a3b8", margin: 0 }}>Students scan this QR code or enter the code manually to access this content.</p>
       </div>
     </Modal>
   );
@@ -215,15 +288,19 @@ const AdminApp = ({ db, setDb, user, onLogout }) => {
   const [modal, setModal] = useState(null);
   const [form, setForm]   = useState({});
   const [err, setErr]     = useState("");
-  const [qrTarget, setQrTarget] = useState(null); // { title, code, description }
+  const [qrTarget, setQrTarget] = useState(null);
 
   const teachers = db.users.filter(u => u.role === "teacher");
 
+  // ── "Credentials" tab only appears for admin ──────────────────────────────
   const tabs = [
-    { id: "overview", label: "Overview",    icon: "🏠" },
-    { id: "users",    label: "Users",        icon: "👥" },
-    { id: "courses",  label: "Courses",      icon: "📚" },
-    { id: "quizzes",  label: "All Quizzes",  icon: "📝" },
+    { id: "overview",     label: "Overview",     icon: "🏠" },
+    { id: "users",        label: "Users",         icon: "👥" },
+    { id: "courses",      label: "Courses",       icon: "📚" },
+    { id: "quizzes",      label: "All Quizzes",   icon: "📝" },
+    ...(user.role === "admin"
+      ? [{ id: "credentials", label: "Credentials", icon: "🔑" }]
+      : []),
   ];
 
   const openModal = (type, data = {}) => { setModal(type); setForm(data); setErr(""); };
@@ -285,7 +362,8 @@ const AdminApp = ({ db, setDb, user, onLogout }) => {
                     <Card key={u.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "14px 20px" }}>
                       <div>
                         <div style={{ fontWeight: 700, color: "#1e293b" }}>{u.name}</div>
-                        <div style={{ fontSize: 13, color: "#64748b" }}>{u.email}</div>
+                        {/* Email is masked here — full details only in Credentials tab */}
+                        <div style={{ fontSize: 13, color: "#64748b" }}>{maskEmail(u.email)}</div>
                       </div>
                       <div style={{ display: "flex", gap: 8 }}>
                         <Btn size="sm" variant="ghost"  onClick={() => openModal("user", { ...u })}>Edit</Btn>
@@ -307,8 +385,8 @@ const AdminApp = ({ db, setDb, user, onLogout }) => {
             </div>
             <div style={{ display: "grid", gap: 14 }}>
               {db.courses.map(c => {
-                const teacher = db.users.find(u => u.id === c.teacherId);
-                const qCount  = db.quizzes.filter(q => q.courseId === c.id).length;
+                const teacher  = db.users.find(u => u.id === c.teacherId);
+                const qCount   = db.quizzes.filter(q => q.courseId === c.id).length;
                 const enrolled = db.enrollments.filter(e => e.courseId === c.id).length;
                 return (
                   <Card key={c.id}>
@@ -368,13 +446,23 @@ const AdminApp = ({ db, setDb, user, onLogout }) => {
             }
           </>
         )}
+
+        {/* ── Credentials tab — admin only, post-login ── */}
+        {tab === "credentials" && user.role === "admin" && (
+          <>
+            <h2 style={{ margin: "0 0 24px", fontWeight: 800, fontSize: 26, color: "#0f172a" }}>🔑 Login Credentials</h2>
+            <CredentialsPanel db={db} />
+          </>
+        )}
+
       </main>
 
       {modal === "user" && (
         <Modal title={form.id ? "Edit User" : "Add User"} onClose={closeModal}>
-          <Input label="Full Name"  value={form.name     || ""} onChange={e => setForm({ ...form, name:     e.target.value })} />
-          <Input label="Email"      value={form.email    || ""} onChange={e => setForm({ ...form, email:    e.target.value })} type="email" />
-          <Input label="Password"   value={form.password || ""} onChange={e => setForm({ ...form, password: e.target.value })} />
+          <Input label="Full Name"     value={form.name     || ""} onChange={e => setForm({ ...form, name:     e.target.value })} />
+          <Input label="FACULTY ID/USN" value={form.usn     || ""} onChange={e => setForm({ ...form, usn:      e.target.value })} />
+          <Input label="Email"         value={form.email    || ""} onChange={e => setForm({ ...form, email:    e.target.value })} type="email" />
+          <Input label="Password"      value={form.password || ""} onChange={e => setForm({ ...form, password: e.target.value })} />
           <Select label="Role" value={form.role || "student"} onChange={e => setForm({ ...form, role: e.target.value })}
             options={[{ value: "teacher", label: "Teacher" }, { value: "student", label: "Student" }]} />
           {err && <p style={{ color: "#dc2626", fontSize: 13 }}>{err}</p>}
@@ -387,9 +475,9 @@ const AdminApp = ({ db, setDb, user, onLogout }) => {
 
       {modal === "course" && (
         <Modal title={form.id ? "Edit Course" : "Add Course"} onClose={closeModal}>
-          <Input   label="Course Name"    value={form.name        || ""} onChange={e => setForm({ ...form, name:        e.target.value })} />
+          <Input    label="Course Name"   value={form.name        || ""} onChange={e => setForm({ ...form, name:        e.target.value })} />
           <Textarea label="Description"   value={form.description || ""} onChange={e => setForm({ ...form, description: e.target.value })} />
-          <Select  label="Assign Teacher" value={form.teacherId   || ""} onChange={e => setForm({ ...form, teacherId:   e.target.value })}
+          <Select   label="Assign Teacher" value={form.teacherId  || ""} onChange={e => setForm({ ...form, teacherId:   e.target.value })}
             options={[{ value: "", label: "— Select Teacher —" }, ...teachers.map(t => ({ value: t.id, label: t.name }))]} />
           {err && <p style={{ color: "#dc2626", fontSize: 13 }}>{err}</p>}
           <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
@@ -413,23 +501,36 @@ const TeacherApp = ({ db, setDb, user, onLogout }) => {
   const [editingQuiz, setEditingQuiz] = useState(null);
   const [questionForm, setQuestionForm] = useState({ text: "", options: ["", "", "", ""], correctAnswer: 0 });
   const [qrTarget, setQrTarget] = useState(null);
+  const [selectedQuizId, setSelectedQuizId] = useState("all");
 
-  const myCourses    = db.courses.filter(c => c.teacherId === user.id);
-  const myCourseIds  = myCourses.map(c => c.id);
-  const myQuizzes    = db.quizzes.filter(q => myCourseIds.includes(q.courseId));
+  const myCourses   = db.courses.filter(c => c.teacherId === user.id);
+  const myCourseIds = myCourses.map(c => c.id);
+  const myQuizzes   = db.quizzes.filter(q => myCourseIds.includes(q.courseId));
+  const myQuizIds   = myQuizzes.map(q => q.id);
+  const teacherAttempts = db.attempts.filter(a => myQuizIds.includes(a.quizId));
 
   const tabs = [
-    { id: "overview", label: "Overview",    icon: "🏠" },
-    { id: "courses",  label: "My Courses",  icon: "📚" },
-    { id: "quizzes",  label: "My Quizzes",  icon: "📝" },
+    { id: "overview", label: "Overview",   icon: "🏠" },
+    { id: "courses",  label: "My Courses", icon: "📚" },
+    { id: "quizzes",  label: "My Quizzes", icon: "📝" },
+    { id: "results",  label: "Results",    icon: "📊" },
     ...(editingQuiz ? [{ id: "editor", label: "Quiz Editor", icon: "✏️" }] : []),
   ];
 
-  const openQuizModal = (data = {}) => { setModal("quiz"); setForm(data.id ? { ...data } : { courseId: myCourseIds[0] || "", title: "", description: "" }); setErr(""); };
+  const openQuizModal = (data = {}) => {
+    setModal("quiz");
+    setForm(data.id ? { ...data } : { courseId: myCourseIds[0] || "", title: "", description: "" });
+    setErr("");
+  };
 
   const saveQuiz = () => {
     if (!form.title || !form.courseId) return setErr("Title and course required.");
-    setDb(d => ({ ...d, quizzes: form.id ? d.quizzes.map(q => q.id === form.id ? { ...q, ...form } : q) : [...d.quizzes, { ...form, id: genId(), joinCode: genCode("QZ-"), questions: [] }] }));
+    setDb(d => ({
+      ...d,
+      quizzes: form.id
+        ? d.quizzes.map(q => q.id === form.id ? { ...q, ...form } : q)
+        : [...d.quizzes, { ...form, id: genId(), joinCode: genCode("QZ-"), questions: [] }]
+    }));
     setModal(null);
   };
 
@@ -439,7 +540,12 @@ const TeacherApp = ({ db, setDb, user, onLogout }) => {
     if (editingQuiz?.id === id) { setEditingQuiz(null); setTab("quizzes"); }
   };
 
-  const openEditor = (quiz) => { setEditingQuiz(quiz); setTab("editor"); setQuestionForm({ text: "", options: ["", "", "", ""], correctAnswer: 0 }); setErr(""); };
+  const openEditor = (quiz) => {
+    setEditingQuiz(quiz);
+    setTab("editor");
+    setQuestionForm({ text: "", options: ["", "", "", ""], correctAnswer: 0 });
+    setErr("");
+  };
 
   const addQuestion = () => {
     if (!questionForm.text || questionForm.options.some(o => !o)) return setErr("Fill all question fields.");
@@ -457,6 +563,55 @@ const TeacherApp = ({ db, setDb, user, onLogout }) => {
 
   const currentQuiz = editingQuiz ? db.quizzes.find(q => q.id === editingQuiz.id) : null;
 
+  // ── Results helpers ──────────────────────────────────────────────────────
+  const filteredAttempts = selectedQuizId === "all"
+    ? teacherAttempts
+    : teacherAttempts.filter(a => a.quizId === selectedQuizId);
+
+  const getScorePercent = (attempt) => {
+    const quiz = db.quizzes.find(q => q.id === attempt.quizId);
+    if (!quiz || !quiz.questions.length) return 0;
+    return Math.round((attempt.score / quiz.questions.length) * 100);
+  };
+
+  const getScoreColor = (pct) => {
+    if (pct >= 80) return { color: "#065f46", bg: "#d1fae5" };
+    if (pct >= 50) return { color: "#92400e", bg: "#fef3c7" };
+    return { color: "#991b1b", bg: "#fee2e2" };
+  };
+
+  const exportResults = () => {
+    const rows = [["Name", "USN", "Quiz", "Course", "Score", "Score %"]];
+    filteredAttempts.forEach(a => {
+      const quiz   = db.quizzes.find(q => q.id === a.quizId);
+      const course = db.courses.find(c => c.id === quiz?.courseId);
+      const pct    = getScorePercent(a);
+      rows.push([
+        a.studentName || "—",
+        a.studentUSN  || "—",
+        quiz?.title   || "—",
+        course?.name  || "—",
+        `${a.score} out of ${quiz?.questions?.length ?? "?"}`,
+        `${pct}%`,
+      ]);
+    });
+    const csv = rows.map(r => r.map(v => `"${v}"`).join(",")).join("\n");
+    const blob = new Blob([csv], { type: "text/csv" });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement("a");
+    a.href = url; a.download = "quiz_results.csv"; a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  // Per-quiz summary cards for the results header
+  const quizSummaries = myQuizzes.map(q => {
+    const attempts = teacherAttempts.filter(a => a.quizId === q.id);
+    const avg = attempts.length
+      ? Math.round(attempts.reduce((s, a) => s + getScorePercent(a), 0) / attempts.length)
+      : null;
+    return { quiz: q, attempts, avg };
+  }).filter(s => s.attempts.length > 0);
+
   return (
     <div style={{ display: "flex" }}>
       <Sidebar user={user} activeTab={tab} setTab={t => { setTab(t); if (t !== "editor") setEditingQuiz(null); }} tabs={tabs} onLogout={onLogout} />
@@ -466,9 +621,9 @@ const TeacherApp = ({ db, setDb, user, onLogout }) => {
           <>
             <h2 style={{ margin: "0 0 24px", fontWeight: 800, fontSize: 26, color: "#0f172a" }}>Welcome, {user.name.split(" ")[0]} 👋</h2>
             <div style={{ display: "flex", gap: 16, flexWrap: "wrap", marginBottom: 32 }}>
-              <Stat icon="📚" label="My Courses" value={myCourses.length}  color="#2563eb" />
-              <Stat icon="📝" label="My Quizzes" value={myQuizzes.length}  color="#7c3aed" />
-              <Stat icon="✅" label="Total Attempts" value={db.attempts.filter(a => myQuizzes.find(q => q.id === a.quizId)).length} color="#059669" />
+              <Stat icon="📚" label="My Courses"     value={myCourses.length}      color="#2563eb" />
+              <Stat icon="📝" label="My Quizzes"     value={myQuizzes.length}      color="#7c3aed" />
+              <Stat icon="✅" label="Total Attempts" value={teacherAttempts.length} color="#059669" />
             </div>
             <Card>
               <h3 style={{ margin: "0 0 8px", fontWeight: 700 }}>Share Course Access via QR</h3>
@@ -488,7 +643,7 @@ const TeacherApp = ({ db, setDb, user, onLogout }) => {
               ? <Card><p style={{ color: "#94a3b8", textAlign: "center" }}>No courses assigned yet.</p></Card>
               : <div style={{ display: "grid", gap: 14 }}>
                 {myCourses.map(c => {
-                  const qz = myQuizzes.filter(q => q.courseId === c.id);
+                  const qz       = myQuizzes.filter(q => q.courseId === c.id);
                   const enrolled = db.enrollments.filter(e => e.courseId === c.id).length;
                   return (
                     <Card key={c.id}>
@@ -538,7 +693,7 @@ const TeacherApp = ({ db, setDb, user, onLogout }) => {
                           </div>
                         </div>
                         <div style={{ display: "flex", gap: 8 }}>
-                          <Btn size="sm" variant="purple" onClick={() => setQrTarget({ title: q.title, code: q.joinCode, description: `Share this QR so students can directly access "${q.title}"` })}>📱 QR</Btn>
+                          <Btn size="sm" variant="purple"  onClick={() => setQrTarget({ title: q.title, code: q.joinCode, description: `Share this QR so students can directly access "${q.title}"` })}>📱 QR</Btn>
                           <Btn size="sm" variant="outline" onClick={() => openEditor(q)}>✏️ Questions</Btn>
                           <Btn size="sm" variant="ghost"   onClick={() => openQuizModal(q)}>Edit</Btn>
                           <Btn size="sm" variant="danger"  onClick={() => deleteQuiz(q.id)}>Delete</Btn>
@@ -603,13 +758,120 @@ const TeacherApp = ({ db, setDb, user, onLogout }) => {
             </div>
           </>
         )}
+
+        {/* ── Results Tab ─────────────────────────────────────────────────── */}
+        {tab === "results" && (
+          <>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24 }}>
+              <h2 style={{ margin: 0, fontWeight: 800, fontSize: 26, color: "#0f172a" }}>📊 Student Results</h2>
+              <Btn variant="success" onClick={exportResults}>⬇ Export CSV</Btn>
+            </div>
+
+            {/* Summary cards per quiz */}
+            {quizSummaries.length > 0 && (
+              <div style={{ display: "flex", gap: 14, flexWrap: "wrap", marginBottom: 28 }}>
+                {quizSummaries.map(({ quiz, attempts, avg }) => (
+                  <div
+                    key={quiz.id}
+                    onClick={() => setSelectedQuizId(selectedQuizId === quiz.id ? "all" : quiz.id)}
+                    style={{ flex: "1 1 160px", minWidth: 160, background: selectedQuizId === quiz.id ? "#eff6ff" : "#fff", border: selectedQuizId === quiz.id ? "2px solid #2563eb" : "1.5px solid #e2e8f0", borderRadius: 12, padding: "14px 18px", cursor: "pointer", transition: "all .15s" }}
+                  >
+                    <div style={{ fontSize: 13, fontWeight: 700, color: "#1e293b", marginBottom: 4, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{quiz.title}</div>
+                    <div style={{ fontSize: 22, fontWeight: 800, color: "#2563eb", lineHeight: 1 }}>{attempts.length}</div>
+                    <div style={{ fontSize: 12, color: "#64748b", marginTop: 2 }}>attempt{attempts.length !== 1 ? "s" : ""}{avg !== null ? ` · Avg ${avg}%` : ""}</div>
+                  </div>
+                ))}
+                {selectedQuizId !== "all" && (
+                  <div onClick={() => setSelectedQuizId("all")} style={{ flex: "0 0 auto", display: "flex", alignItems: "center", padding: "0 16px", background: "#f1f5f9", border: "1.5px solid #e2e8f0", borderRadius: 12, cursor: "pointer", fontSize: 13, fontWeight: 600, color: "#475569" }}>
+                    Show All
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Filter bar */}
+            <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 16 }}>
+              <label style={{ fontSize: 13, fontWeight: 600, color: "#374151" }}>Filter by quiz:</label>
+              <select
+                value={selectedQuizId}
+                onChange={e => setSelectedQuizId(e.target.value)}
+                style={{ padding: "7px 12px", borderRadius: 8, border: "1.5px solid #d1d5db", fontSize: 13, fontFamily: "inherit", background: "#fff" }}
+              >
+                <option value="all">All Quizzes ({teacherAttempts.length} attempts)</option>
+                {myQuizzes.map(q => {
+                  const cnt = teacherAttempts.filter(a => a.quizId === q.id).length;
+                  return <option key={q.id} value={q.id}>{q.title} ({cnt})</option>;
+                })}
+              </select>
+              <span style={{ marginLeft: "auto", fontSize: 13, color: "#64748b" }}>
+                {filteredAttempts.length} result{filteredAttempts.length !== 1 ? "s" : ""}
+              </span>
+            </div>
+
+            {/* Results table */}
+            {filteredAttempts.length === 0 ? (
+              <Card><p style={{ color: "#94a3b8", textAlign: "center", margin: 0 }}>No attempts recorded yet.</p></Card>
+            ) : (
+              <Card style={{ padding: 0, overflow: "hidden" }}>
+                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
+                  <thead>
+                    <tr style={{ background: "#f8fafc", borderBottom: "1.5px solid #e2e8f0" }}>
+                      {["#", "Name", "USN", "Quiz", "Course", "Score", "Score %"].map(h => (
+                        <th key={h} style={{ padding: "11px 14px", textAlign: "left", fontWeight: 700, fontSize: 12, color: "#64748b", textTransform: "uppercase", letterSpacing: 0.5, whiteSpace: "nowrap" }}>{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredAttempts.map((a, i) => {
+                      const quiz   = db.quizzes.find(q => q.id === a.quizId);
+                      const course = db.courses.find(c => c.id === quiz?.courseId);
+                      const pct    = getScorePercent(a);
+                      const { color, bg } = getScoreColor(pct);
+                      return (
+                        <tr key={a.id} style={{ borderBottom: "1px solid #f1f5f9", background: i % 2 === 0 ? "#fff" : "#fafafa" }}>
+                          <td style={{ padding: "11px 14px", color: "#94a3b8", fontSize: 12 }}>{i + 1}</td>
+                          <td style={{ padding: "11px 14px", fontWeight: 600, color: "#1e293b" }}>{a.studentName || "—"}</td>
+                          <td style={{ padding: "11px 14px", fontFamily: "monospace", fontSize: 13, color: "#475569" }}>{a.studentUSN || "—"}</td>
+                          <td style={{ padding: "11px 14px", color: "#1e293b" }}>{quiz?.title || "—"}</td>
+                          <td style={{ padding: "11px 14px", color: "#64748b", fontSize: 13 }}>{course?.name || "—"}</td>
+                          <td style={{ padding: "11px 14px", fontWeight: 700, color: "#1e293b" }}>
+                            {a.score}/{quiz?.questions?.length ?? "?"}
+                          </td>
+                          <td style={{ padding: "11px 14px" }}>
+                            <span style={{ background: bg, color, borderRadius: 20, padding: "3px 10px", fontSize: 12, fontWeight: 700 }}>{pct}%</span>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+
+                {/* Footer summary */}
+                {filteredAttempts.length > 0 && (() => {
+                  const avg = Math.round(filteredAttempts.reduce((s, a) => s + getScorePercent(a), 0) / filteredAttempts.length);
+                  const high = Math.max(...filteredAttempts.map(a => getScorePercent(a)));
+                  const low  = Math.min(...filteredAttempts.map(a => getScorePercent(a)));
+                  return (
+                    <div style={{ display: "flex", gap: 24, padding: "14px 20px", background: "#f8fafc", borderTop: "1.5px solid #e2e8f0" }}>
+                      <span style={{ fontSize: 13, color: "#64748b" }}>Average: <strong style={{ color: "#1e293b" }}>{avg}%</strong></span>
+                      <span style={{ fontSize: 13, color: "#64748b" }}>Highest: <strong style={{ color: "#059669" }}>{high}%</strong></span>
+                      <span style={{ fontSize: 13, color: "#64748b" }}>Lowest: <strong style={{ color: "#dc2626" }}>{low}%</strong></span>
+                      <span style={{ fontSize: 13, color: "#64748b" }}>Total: <strong style={{ color: "#1e293b" }}>{filteredAttempts.length} attempts</strong></span>
+                    </div>
+                  );
+                })()}
+              </Card>
+            )}
+          </>
+        )}
+
       </main>
 
       {modal === "quiz" && (
         <Modal title={form.id ? "Edit Quiz" : "New Quiz"} onClose={() => setModal(null)}>
-          <Input   label="Quiz Title"   value={form.title       || ""} onChange={e => setForm({ ...form, title:       e.target.value })} />
-          <Textarea label="Description" value={form.description || ""} onChange={e => setForm({ ...form, description: e.target.value })} />
-          <Select  label="Course"       value={form.courseId    || ""} onChange={e => setForm({ ...form, courseId:    e.target.value })} options={myCourses.map(c => ({ value: c.id, label: c.name }))} />
+          <Input    label="Quiz Title"   value={form.title       || ""} onChange={e => setForm({ ...form, title:       e.target.value })} />
+          <Textarea label="Description"  value={form.description || ""} onChange={e => setForm({ ...form, description: e.target.value })} />
+          <Select   label="Course"       value={form.courseId    || ""} onChange={e => setForm({ ...form, courseId:    e.target.value })} options={myCourses.map(c => ({ value: c.id, label: c.name }))} />
           {err && <p style={{ color: "#dc2626", fontSize: 13 }}>{err}</p>}
           <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
             <Btn variant="ghost" onClick={() => setModal(null)}>Cancel</Btn>
@@ -623,6 +885,7 @@ const TeacherApp = ({ db, setDb, user, onLogout }) => {
   );
 };
 
+
 // ─── STUDENT MODULE ───────────────────────────────────────────────────────────
 const StudentApp = ({ db, setDb, user, onLogout }) => {
   const [tab, setTab]         = useState("join");
@@ -633,13 +896,53 @@ const StudentApp = ({ db, setDb, user, onLogout }) => {
   const [answers, setAnswers]               = useState({});
   const [submitted, setSubmitted]           = useState(false);
   const [result, setResult]                 = useState(null);
-  const [studentName, setStudentName] = useState("");
-  const [studentUSN, setStudentUSN] = useState("");
-  const [registered, setRegistered] = useState(false);
+  const [showRegistration, setShowRegistration] = useState(false);
+  const [pendingQuiz, setPendingQuiz] = useState(null);
+
+  const [studentName, setStudentName] = useState(user.name || "");
+  const [studentUSN, setStudentUSN] = useState(user.usn || "");
 
   const myEnrollments  = db.enrollments.filter(e => e.studentId === user.id);
   const myCourseIds    = myEnrollments.map(e => e.courseId);
   const myAttempts     = db.attempts.filter(a => a.studentId === user.id);
+
+  useEffect(() => {
+
+  const params =
+    new URLSearchParams(
+      window.location.search
+    );
+
+  const code =
+    params.get("code");
+
+  if (code) {
+
+    setCodeInput(
+      code.toUpperCase()
+    );
+
+    const quiz =
+      db.quizzes.find(
+        q =>
+          q.joinCode ===
+          code.toUpperCase()
+      );
+
+    if (quiz) {
+
+      setPendingQuiz(
+        quiz
+      );
+
+      setShowRegistration(
+        true
+      );
+    }
+  }
+
+}, [db.quizzes]);
+
 
   const tabs = [
     { id: "join",       label: "Join via Code",  icon: "📱" },
@@ -647,57 +950,178 @@ const StudentApp = ({ db, setDb, user, onLogout }) => {
     { id: "myresults",  label: "My Results",      icon: "🏆" },
   ];
 
-  const handleJoin = () => {
-    const code = codeInput.trim().toUpperCase();
-    if (!code) return setCodeError("Please enter a code.");
+  
+const handleJoin = () => {
+  const code = codeInput.trim().toUpperCase();
 
-    // Check course code
-    const course = db.courses.find(c => c.joinCode.toUpperCase() === code);
-    if (course) {
-      const already = myEnrollments.find(e => e.courseId === course.id);
-      if (already) { setCodeError("You are already enrolled in this course!"); return; }
-      setDb(d => ({ ...d, enrollments: [...d.enrollments, { id: genId(), studentId: user.id, courseId: course.id }] }));
-      setCodeInput("");
-      setCodeError("");
-      setTab("mycourses");
-      return;
+  if (!code) {
+    setCodeError("Please enter a code.");
+    return;
+  }
+
+  const course = db.courses.find(c => c.joinCode.toUpperCase() === code);
+
+  if (course) {
+    const already = myEnrollments.find(e => e.courseId === course.id);
+
+    if (!already) {
+      setDb(d => ({
+        ...d,
+        enrollments: [...d.enrollments,{id:genId(),studentId:user.id,courseId:course.id}]
+      }));
     }
 
-    // Check quiz code
-    const quiz = db.quizzes.find(q => q.joinCode.toUpperCase() === code);
-    if (quiz) {
+    alert(`Joined ${course.name}`);
+    setCodeInput("");
+    setCodeError("");
+    return;
+  }
 
-      // Auto-enroll in parent course
-      const already = myEnrollments.find(e => e.courseId === quiz.courseId);
-      if (!already) {
-        setDb(d => ({ ...d, enrollments: [...d.enrollments, { id: genId(), studentId: user.id, courseId: quiz.courseId }] }));
-      }
-      setCodeInput("");
-      setCodeError("");
-      launchQuiz(quiz);
-      return;
-    }
+  const quiz = db.quizzes.find(q => q.joinCode.toUpperCase() === code);
 
-    setCodeError("Invalid code. Please check and try again.");
-  };
+  if (quiz) {
+    setPendingQuiz(quiz);
+    setShowRegistration(true);
+    setCodeInput("");
+    setCodeError("");
+    return;
+  }
 
-  const launchQuiz = (quiz) => {
-    setActiveQuiz(quiz);
-    setAnswers({});
-    setSubmitted(false);
-    setResult(null);
-  };
+  setCodeError("Invalid code.");
+};
 
-  const submitQuiz = () => {
+
+const launchQuiz = (quiz) => {
+
+  const alreadyAttempted = db.attempts.find(
+    a => a.studentId === user.id && a.quizId === quiz.id
+  );
+
+  if (alreadyAttempted) {
+    alert("You have already attempted this quiz.");
+    return;
+  }
+
+  setActiveQuiz(quiz);
+  setAnswers({});
+  setSubmitted(false);
+  setResult(null);
+};
+
+const startRegisteredQuiz = () => {
+
+  if (!studentName.trim()) {
+    alert(
+      "Enter Student Name"
+    );
+    return;
+  }
+
+  if (!studentUSN.trim()) {
+    alert(
+      "Enter USN"
+    );
+    return;
+  }
+
+  setShowRegistration(
+    false
+  );
+
+  launchQuiz(
+    pendingQuiz
+  );
+};
+
+const submitQuiz = () => {
     if (Object.keys(answers).length < activeQuiz.questions.length) return alert("Please answer all questions before submitting.");
     let score = 0;
     activeQuiz.questions.forEach((q, i) => { if (answers[i] === q.correctAnswer) score++; });
-    const attempt = { id: genId(), studentId: user.id, quizId: activeQuiz.id, answers: { ...answers }, score, completedAt: new Date().toISOString() };
+    const attempt = {
+
+  id: genId(),
+
+  studentId:
+    user.id,
+
+  studentName:
+    studentName,
+
+  studentUSN:
+    studentUSN,
+
+  quizId:
+    activeQuiz.id,
+
+  answers:
+    { ...answers },
+
+  score,
+
+  completedAt:
+    new Date().toISOString()
+
+};
+
     setDb(d => ({ ...d, attempts: [...d.attempts, attempt] }));
     setResult({ score, total: activeQuiz.questions.length });
     setSubmitted(true);
   };
+if (showRegistration) {
+  return (
+    <div
+      style={{
+        minHeight: "100vh",
+        display: "flex",
+        justifyContent: "center",
+        alignItems: "center",
+        background: "#f8fafc"
+      }}
+    >
+      <Card style={{ width: 450 }}>
+        <h2>Student Registration</h2>
 
+        <Input
+          label="Student Name"
+          value={studentName}
+          onChange={(e) =>
+            setStudentName(e.target.value)
+          }
+        />
+
+        <Input
+          label="USN"
+          value={studentUSN}
+          onChange={(e) =>
+            setStudentUSN(e.target.value)
+          }
+        />
+
+        <div
+          style={{
+            display: "flex",
+            gap: 10
+          }}
+        >
+          <Btn
+            onClick={() => {
+              setShowRegistration(false);
+              setPendingQuiz(null);
+            }}
+          >
+            Cancel
+          </Btn>
+
+          <Btn
+            onClick={startRegisteredQuiz}
+          >
+            Start Quiz
+          </Btn>
+        </div>
+      </Card>
+    </div>
+  );
+}
   // ── Quiz taking / results screen ──────────────────────────────────────────
   if (activeQuiz) {
     const pct = submitted ? Math.round((result.score / result.total) * 100) : 0;
@@ -786,239 +1210,58 @@ const StudentApp = ({ db, setDb, user, onLogout }) => {
       <Sidebar user={user} activeTab={tab} setTab={t => { setTab(t); setSelectedCourse(null); }} tabs={tabs} onLogout={onLogout} />
       <main style={{ flex: 1, padding: 32, background: "#f8fafc", minHeight: "100vh" }}>
 
-        {!registered ? (
-  <div style={{ maxWidth: 400, margin: "60px auto", background: "#fff", padding: 30, borderRadius: 12 }}>
-    <h2 style={{ marginBottom: 20 }}>Student Registration</h2>
-
-    <input
-      type="text"
-      placeholder="Enter Name"
-      value={studentName}
-      onChange={(e) => setStudentName(e.target.value)}
-      style={{
-        width: "100%",
-        padding: 12,
-        marginBottom: 15,
-        borderRadius: 8,
-        border: "1px solid #ccc"
-      }}
-    />
-
-    <input
-      type="text"
-      placeholder="Enter USN"
-      value={studentUSN}
-      onChange={(e) => setStudentUSN(e.target.value)}
-      style={{
-        width: "100%",
-        padding: 12,
-        marginBottom: 20,
-        borderRadius: 8,
-        border: "1px solid #ccc"
-      }}
-    />
-
-    <button
-      onClick={() => {
-        if (!studentName || !studentUSN) {
-          alert("Please enter all details");
-          return;
-        }
-        setRegistered(true);
-      }}
-      style={{
-        width: "100%",
-        padding: 12,
-        background: "#0f172a",
-        color: "#fff",
-        border: "none",
-        borderRadius: 8,
-        cursor: "pointer"
-      }}
-    >
-      Continue to Quiz
-    </button>
-  </div>
-) : (
-
         {/* JOIN TAB */}
-{tab === "join" && (
-  <>
-    {!registered ? (
-      <div style={{ maxWidth: 420, margin: "40px auto" }}>
-        <Card>
-          <h2
-            style={{
-              marginBottom: 20,
-              color: "#0f172a",
-              fontSize: 24,
-              fontWeight: 800,
-            }}
-          >
-            Student Registration
-          </h2>
+        {tab === "join" && (
+          <div style={{ maxWidth: 520, margin: "0 auto" }}>
+            <h2 style={{ margin: "0 0 6px", fontWeight: 800, fontSize: 26, color: "#0f172a" }}>Join via QR Code</h2>
+            <p style={{ margin: "0 0 32px", color: "#64748b" }}>Scan the QR code shared by your teacher, or enter the code manually below.</p>
 
-          <Input
-            label="Student Name"
-            value={studentName}
-            onChange={(e) => setStudentName(e.target.value)}
-            placeholder="Enter your full name"
-          />
+            {/* Scan illustration */}
+            <Card style={{ textAlign: "center", marginBottom: 28, padding: 36, background: "linear-gradient(135deg,#0f172a,#1e3a5f)", border: "none" }}>
+              <div style={{ fontSize: 64, marginBottom: 12 }}>📱</div>
+              <div style={{ color: "#94a3b8", fontSize: 14, marginBottom: 6 }}>Point your camera at the QR code</div>
+              <div style={{ color: "#64748b", fontSize: 12 }}>or enter the code below</div>
+            </Card>
 
-          <Input
-            label="USN"
-            value={studentUSN}
-            onChange={(e) => setStudentUSN(e.target.value)}
-            placeholder="Enter your USN"
-          />
+            {/* Manual code entry */}
+            <Card>
+              <h3 style={{ margin: "0 0 16px", fontWeight: 700, fontSize: 16, color: "#1e293b" }}>Enter Code Manually</h3>
+              <div style={{ display: "flex", gap: 10 }}>
+                <input
+                  value={codeInput}
+                  onChange={e => { setCodeInput(e.target.value.toUpperCase()); setCodeError(""); }}
+                  onKeyDown={e => e.key === "Enter" && handleJoin()}
+                  placeholder="e.g. CRS-MATH1 or QZ-ALG01"
+                  style={{ flex: 1, padding: "11px 14px", borderRadius: 8, border: codeError ? "2px solid #dc2626" : "1.5px solid #d1d5db", fontSize: 15, fontFamily: "monospace", fontWeight: 700, letterSpacing: 1, textTransform: "uppercase", outline: "none" }}
+                />
+                <Btn size="md" onClick={handleJoin}>Join →</Btn>
+              </div>
+              {codeError && <p style={{ color: "#dc2626", fontSize: 13, margin: "10px 0 0" }}>⚠ {codeError}</p>}
+              <p style={{ fontSize: 12, color: "#94a3b8", margin: "14px 0 0" }}>
+                Use a <strong>CRS-XXXXX</strong> code to join a full course, or a <strong>QZ-XXXXX</strong> code to directly attempt a quiz.
+              </p>
 
-          <button
-            onClick={() => {
-              if (!studentName || !studentUSN) {
-                alert("Please enter all details");
-                return;
-              }
-
-              setRegistered(true);
-            }}
-            style={{
-              width: "100%",
-              padding: 12,
-              background: "#0f172a",
-              color: "#fff",
-              border: "none",
-              borderRadius: 8,
-              cursor: "pointer",
-              fontWeight: 700,
-            }}
-          >
-            Continue to Quiz
-          </button>
-        </Card>
-      </div>
-    ) : (
-      <div style={{ maxWidth: 520, margin: "0 auto" }}>
-        <h2
-          style={{
-            margin: "0 0 6px",
-            fontWeight: 800,
-            fontSize: 26,
-            color: "#0f172a",
-          }}
-        >
-          Join via QR Code
-        </h2>
-
-        <p
-          style={{
-            margin: "0 0 32px",
-            color: "#64748b",
-          }}
-        >
-          Scan the QR code shared by your teacher, or enter the code manually below.
-        </p>
-
-        <Card
-          style={{
-            textAlign: "center",
-            marginBottom: 28,
-            padding: 36,
-            background:
-              "linear-gradient(135deg,#f0f9ff,#e0f2fe)",
-          }}
-        >
-          <div style={{ fontSize: 64, marginBottom: 12 }}>
-            📱
+              {/* Demo hint */}
+              <div style={{ marginTop: 20, padding: 14, background: "#f1f5f9", borderRadius: 10, border: "1px solid #e2e8f0" }}>
+                <div style={{ fontSize: 12, fontWeight: 700, color: "#475569", marginBottom: 10, textTransform: "uppercase", letterSpacing: 0.5 }}>Demo Codes to Try</div>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                  {[
+                    { code: "CRS-MATH1", label: "Mathematics 101" },
+                    { code: "CRS-PHYS2", label: "Physics" },
+                    { code: "CRS-DATA3", label: "Data Structures" },
+                    { code: "QZ-ALG01",  label: "Algebra Quiz" },
+                    { code: "QZ-NEW02",  label: "Newton's Quiz" },
+                  ].map(d => (
+                    <button key={d.code} onClick={() => { setCodeInput(d.code); setCodeError(""); }}
+                      style={{ background: "#fff", border: "1.5px solid #e2e8f0", borderRadius: 8, padding: "5px 10px", cursor: "pointer", fontFamily: "monospace", fontWeight: 700, fontSize: 12, color: "#1e293b" }}>
+                      {d.code}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </Card>
           </div>
-
-          <div
-            style={{
-              color: "#94a3b8",
-              fontSize: 14,
-              marginBottom: 6,
-            }}
-          >
-            Point your camera at the QR code
-          </div>
-
-          <div
-            style={{
-              color: "#64748b",
-              fontSize: 12,
-            }}
-          >
-            or enter the code below
-          </div>
-        </Card>
-
-        <Card>
-          <h3
-            style={{
-              margin: "0 0 16px",
-              fontWeight: 700,
-              fontSize: 16,
-              color: "#1e293b",
-            }}
-          >
-            Enter Code Manually
-          </h3>
-
-          <div style={{ display: "flex", gap: 10 }}>
-            <input
-              value={codeInput}
-              onChange={(e) => {
-                setCodeInput(e.target.value.toUpperCase());
-                setCodeError("");
-              }}
-              onKeyDown={(e) =>
-                e.key === "Enter" && handleJoin()
-              }
-              placeholder="e.g. CRS-MATH1 or QZ-ALG01"
-              style={{
-                flex: 1,
-                padding: "11px 14px",
-                borderRadius: 8,
-                border: codeError
-                  ? "2px solid #dc2626"
-                  : "1.5px solid #cbd5e1",
-                fontSize: 15,
-                fontFamily: "inherit",
-              }}
-            />
-
-            <Btn size="md" onClick={handleJoin}>
-              Join →
-            </Btn>
-          </div>
-
-          {codeError && (
-            <p
-              style={{
-                color: "#dc2626",
-                fontSize: 13,
-                margin: "10px 0 0",
-              }}
-            >
-              ⚠ {codeError}
-            </p>
-          )}
-
-          <p
-            style={{
-              fontSize: 12,
-              color: "#94a3b8",
-              margin: "14px 0 0",
-            }}
-          >
-            Use a <strong>CRS-XXXXX</strong> code to join a full
-            course, or a <strong>QZ-XXXXX</strong> code to take a
-            single quiz.
-          </p>
-        </Card>
-      </div>
-    )}
-  </>
-)}
+        )}
 
         {/* MY COURSES TAB */}
         {tab === "mycourses" && !selectedCourse && (
@@ -1073,9 +1316,22 @@ const StudentApp = ({ db, setDb, user, onLogout }) => {
                           {pct !== null && <span style={{ color: pct >= 75 ? "#059669" : "#d97706", fontWeight: 700, marginLeft: 8 }}>· Last: {pct}%</span>}
                         </div>
                       </div>
-                      <Btn size="sm" variant={attempt ? "outline" : "primary"} onClick={() => launchQuiz(q)}>
-                        {attempt ? "Retake" : "Start Quiz →"}
-                      </Btn>
+                      {attempt ? (
+  <Btn
+    size="sm"
+    disabled
+    variant="outline"
+  >
+    Completed ✓
+  </Btn>
+) : (
+  <Btn
+    size="sm"
+    onClick={() => launchQuiz(q)}
+  >
+    Start Quiz →
+  </Btn>
+)}
                     </Card>
                   );
                 })}
@@ -1115,7 +1371,6 @@ const StudentApp = ({ db, setDb, user, onLogout }) => {
             }
           </>
         )}
-      )}
       </main>
     </div>
   );
@@ -1133,6 +1388,7 @@ const LoginPage = ({ db, onLogin }) => {
     { label: "Teacher (Prof. Mehta)",email:"rahul@quizly.com", password: "pass123",  role: "teacher" },
     { label: "Student (Priya)",    email: "priya@quizly.com",  password: "pass123",  role: "student" },
     { label: "Student (Arjun)",    email: "arjun@quizly.com",  password: "pass123",  role: "student" },
+    
   ];
 
   const handleLogin = () => {
@@ -1183,11 +1439,85 @@ const LoginPage = ({ db, onLogin }) => {
 
 // ─── ROOT ─────────────────────────────────────────────────────────────────────
 export default function App() {
-  const [db, setDb]               = useState(SEED);
+
+  const [db, setDb] = useState(SEED);
+
   const [currentUser, setCurrentUser] = useState(null);
+
   const logout = () => setCurrentUser(null);
-  if (!currentUser)                    return <LoginPage db={db} onLogin={setCurrentUser} />;
-  if (currentUser.role === "admin")    return <AdminApp   db={db} setDb={setDb} user={currentUser} onLogout={logout} />;
-  if (currentUser.role === "teacher")  return <TeacherApp db={db} setDb={setDb} user={currentUser} onLogout={logout} />;
-  return <StudentApp db={db} setDb={setDb} user={currentUser} onLogout={logout} />;
+
+  // Read QR code from URL
+  const params = new URLSearchParams(window.location.search);
+  const qrCode = params.get("code");
+
+  // QR access without login
+  if (!currentUser) {
+
+    if (qrCode) {
+
+      const quiz = db.quizzes.find(
+        q => q.joinCode.toUpperCase() === qrCode.toUpperCase()
+      );
+
+      if (quiz) {
+
+        const guestUser = {
+          id: "guest",
+          name: "",
+          usn: "",
+          role: "student"
+        };
+
+        return (
+          <StudentApp
+            db={db}
+            setDb={setDb}
+            user={guestUser}
+            onLogout={() => {}}
+          />
+        );
+      }
+    }
+
+    return (
+      <LoginPage
+        db={db}
+        onLogin={setCurrentUser}
+      />
+    );
+  }
+
+  // Admin
+  if (currentUser.role === "admin") {
+    return (
+      <AdminApp
+        db={db}
+        setDb={setDb}
+        user={currentUser}
+        onLogout={logout}
+      />
+    );
+  }
+
+  // Teacher
+  if (currentUser.role === "teacher") {
+    return (
+      <TeacherApp
+        db={db}
+        setDb={setDb}
+        user={currentUser}
+        onLogout={logout}
+      />
+    );
+  }
+
+  // Student
+  return (
+    <StudentApp
+      db={db}
+      setDb={setDb}
+      user={currentUser}
+      onLogout={logout}
+    />
+  );
 }
