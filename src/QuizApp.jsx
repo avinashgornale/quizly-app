@@ -10,9 +10,7 @@ import {
 import {
   doc,
   setDoc,
-  getDoc,
-  collection,
-  getDocs
+  getDoc
 } from "firebase/firestore";
 
 const genId = () => Math.random().toString(36).substr(2, 9);
@@ -954,20 +952,27 @@ const StudentApp = ({ db, setDb, user, onLogout }) => {
   const myAttempts    = db.attempts.filter(a => a.studentId === user.id);
 
   // ── Read QR code from URL once on mount only ──────────────────────────────
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const code   = params.get("code");
-    if (!code) return;
+useEffect(() => {
+  const params = new URLSearchParams(window.location.search);
+  const code = params.get("code");
 
-    const upper = code.toUpperCase();
-    setCodeInput(upper);
+  if (!code) return;
 
-    const quiz = db.quizzes.find(q => q.joinCode === upper);
-    if (quiz) {
-      setPendingQuiz(quiz);
-      setShowRegistration(true);
-    }
-  }, []); // ← empty: run once on mount only
+  const upper = code.toUpperCase();
+
+  setCodeInput(upper);
+
+  const quiz =
+    db.quizzes.find(
+      q => q.joinCode === upper
+    );
+
+  if (quiz) {
+    setPendingQuiz(quiz);
+    setShowRegistration(true);
+  }
+
+}, [db.quizzes]);// ← empty: run once on mount only
 
   const tabs = [
     { id: "join",      label: "Join via Code", icon: "📱" },
