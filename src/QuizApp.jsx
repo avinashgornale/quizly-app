@@ -1,14 +1,19 @@
-import { auth } from "./firebase";
+import { useState, useEffect, useRef } from "react";
+
+import { auth, firestore } from "./firebase";
 
 import {
+  signInWithEmailAndPassword,
   createUserWithEmailAndPassword
 } from "firebase/auth";
 
 import {
   doc,
-  setDoc
+  setDoc,
+  getDoc,
+  collection,
+  getDocs
 } from "firebase/firestore";
-import { useState, useEffect, useRef } from "react";
 
 const genId = () => Math.random().toString(36).substr(2, 9);
 const genCode = (prefix) => prefix + Math.random().toString(36).substr(2, 5).toUpperCase();
@@ -328,7 +333,7 @@ const AdminApp = ({ db, setDb, user, onLogout }) => {
       );
 
     await setDoc(
-      doc(db, "users", cred.user.uid),
+  doc(firestore, "users", cred.user.uid),
       {
         uid: cred.user.uid,
         name: form.name,
@@ -608,7 +613,8 @@ const TeacherApp = ({ db, setDb, user, onLogout }) => {
   const getScorePercent = (attempt) => {
     const quiz = db.quizzes.find(q => q.id === attempt.quizId);
     if (!quiz || !quiz.questions.length) return 0;
-    return Math.round((attempt.score / quiz.questions.length) * 100);
+    const num = typeof attempt.score === "number" ? attempt.score : parseInt(attempt.score, 10);
+    return Math.round((num / quiz.questions.length) * 100);
   };
 
   const getScoreColor = (pct) => {
@@ -618,22 +624,27 @@ const TeacherApp = ({ db, setDb, user, onLogout }) => {
   };
 
   const exportResults = () => {
+    const BOM  = "\uFEFF"; // UTF-8 BOM so Excel opens file correctly
     const rows = [["Name", "USN", "Quiz", "Course", "Score", "Score %"]];
     filteredAttempts.forEach(a => {
       const quiz   = db.quizzes.find(q => q.id === a.quizId);
       const course = db.courses.find(c => c.id === quiz?.courseId);
       const pct    = getScorePercent(a);
+      const total  = quiz?.questions?.length ?? "?";
+      const num    = typeof a.score === "number" ? a.score : parseInt(a.score, 10);
+      // "X out of Y" format — plain words that Excel will never misread as a date
+      const scoreCell = `${isNaN(num) ? "?" : num} out of ${total}`;
       rows.push([
         a.studentName || "—",
         a.studentUSN  || "—",
         quiz?.title   || "—",
         course?.name  || "—",
-        `${a.score} out of ${quiz?.questions?.length ?? "?"}`,
+        scoreCell,
         `${pct}%`,
       ]);
     });
-    const csv = rows.map(r => r.map(v => `"${v}"`).join(",")).join("\n");
-    const blob = new Blob([csv], { type: "text/csv" });
+    const csv  = BOM + rows.map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(",")).join("\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
     const url  = URL.createObjectURL(blob);
     const a    = document.createElement("a");
     a.href = url; a.download = "quiz_results.csv"; a.click();
@@ -872,7 +883,7 @@ const TeacherApp = ({ db, setDb, user, onLogout }) => {
                           <td style={{ padding: "11px 14px", color: "#1e293b" }}>{quiz?.title || "—"}</td>
                           <td style={{ padding: "11px 14px", color: "#64748b", fontSize: 13 }}>{course?.name || "—"}</td>
                           <td style={{ padding: "11px 14px", fontWeight: 700, color: "#1e293b" }}>
-                            {a.score}/{quiz?.questions?.length ?? "?"}
+                            {typeof a.score === "number" ? a.score : parseInt(a.score, 10)} / {quiz?.questions?.length ?? "?"}
                           </td>
                           <td style={{ padding: "11px 14px" }}>
                             <span style={{ background: bg, color, borderRadius: 20, padding: "3px 10px", fontSize: 12, fontWeight: 700 }}>{pct}%</span>
@@ -922,255 +933,190 @@ const TeacherApp = ({ db, setDb, user, onLogout }) => {
   );
 };
 
-
 // ─── STUDENT MODULE ───────────────────────────────────────────────────────────
 const StudentApp = ({ db, setDb, user, onLogout }) => {
-  const [tab, setTab]         = useState("join");
+  const [tab, setTab]             = useState("join");
   const [codeInput, setCodeInput] = useState("");
   const [codeError, setCodeError] = useState("");
-  const [selectedCourse, setSelectedCourse] = useState(null);
-  const [activeQuiz, setActiveQuiz]         = useState(null);
-  const [answers, setAnswers]               = useState({});
-  const [submitted, setSubmitted]           = useState(false);
-  const [result, setResult]                 = useState(null);
+  const [selectedCourse, setSelectedCourse]     = useState(null);
+  const [activeQuiz, setActiveQuiz]             = useState(null);
+  const [answers, setAnswers]                   = useState({});
+  const [submitted, setSubmitted]               = useState(false);
+  const [result, setResult]                     = useState(null);
   const [showRegistration, setShowRegistration] = useState(false);
-  const [pendingQuiz, setPendingQuiz] = useState(null);
+  const [pendingQuiz, setPendingQuiz]           = useState(null);
 
   const [studentName, setStudentName] = useState(user.name || "");
-  const [studentUSN, setStudentUSN] = useState(user.usn || "");
+  const [studentUSN, setStudentUSN]   = useState(user.usn  || "");
 
-  const myEnrollments  = db.enrollments.filter(e => e.studentId === user.id);
-  const myCourseIds    = myEnrollments.map(e => e.courseId);
-  const myAttempts     = db.attempts.filter(a => a.studentId === user.id);
+  const myEnrollments = db.enrollments.filter(e => e.studentId === user.id);
+  const myCourseIds   = myEnrollments.map(e => e.courseId);
+  const myAttempts    = db.attempts.filter(a => a.studentId === user.id);
 
+  // ── Read QR code from URL once on mount only ──────────────────────────────
   useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const code   = params.get("code");
+    if (!code) return;
 
-  const params =
-    new URLSearchParams(
-      window.location.search
-    );
+    const upper = code.toUpperCase();
+    setCodeInput(upper);
 
-  const code =
-    params.get("code");
-
-  if (code) {
-
-    setCodeInput(
-      code.toUpperCase()
-    );
-
-    const quiz =
-      db.quizzes.find(
-        q =>
-          q.joinCode ===
-          code.toUpperCase()
-      );
-
+    const quiz = db.quizzes.find(q => q.joinCode === upper);
     if (quiz) {
-
-      setPendingQuiz(
-        quiz
-      );
-
-      setShowRegistration(
-        true
-      );
+      setPendingQuiz(quiz);
+      setShowRegistration(true);
     }
-  }
-
-}, [db.quizzes]);
-
+  }, []); // ← empty: run once on mount only
 
   const tabs = [
-    { id: "join",       label: "Join via Code",  icon: "📱" },
-    { id: "mycourses",  label: "My Courses",      icon: "📚" },
-    { id: "myresults",  label: "My Results",      icon: "🏆" },
+    { id: "join",      label: "Join via Code", icon: "📱" },
+    { id: "mycourses", label: "My Courses",     icon: "📚" },
+    { id: "myresults", label: "My Results",     icon: "🏆" },
   ];
 
-  
-const handleJoin = () => {
-  const code = codeInput.trim().toUpperCase();
+  // ── Join via code ─────────────────────────────────────────────────────────
+  const handleJoin = () => {
+    const code = codeInput.trim().toUpperCase();
+    if (!code) { setCodeError("Please enter a code."); return; }
 
-  if (!code) {
-    setCodeError("Please enter a code.");
-    return;
-  }
-
-  const course = db.courses.find(c => c.joinCode.toUpperCase() === code);
-
-  if (course) {
-    const already = myEnrollments.find(e => e.courseId === course.id);
-
-    if (!already) {
-      setDb(d => ({
-        ...d,
-        enrollments: [...d.enrollments,{id:genId(),studentId:user.id,courseId:course.id}]
-      }));
+    const course = db.courses.find(c => c.joinCode.toUpperCase() === code);
+    if (course) {
+      const already = myEnrollments.find(e => e.courseId === course.id);
+      if (!already) {
+        setDb(d => ({
+          ...d,
+          enrollments: [...d.enrollments, { id: genId(), studentId: user.id, courseId: course.id }],
+        }));
+      }
+      alert(`Joined ${course.name}`);
+      setCodeInput("");
+      setCodeError("");
+      return;
     }
 
-    alert(`Joined ${course.name}`);
-    setCodeInput("");
-    setCodeError("");
-    return;
-  }
+    const quiz = db.quizzes.find(q => q.joinCode.toUpperCase() === code);
+    if (quiz) {
+      setPendingQuiz(quiz);
+      setShowRegistration(true);
+      setCodeInput("");
+      setCodeError("");
+      return;
+    }
 
-  const quiz = db.quizzes.find(q => q.joinCode.toUpperCase() === code);
+    setCodeError("Invalid code.");
+  };
 
-  if (quiz) {
+  // ── Launch quiz (after registration) ─────────────────────────────────────
+  const launchQuiz = (quiz) => {
+    const alreadyAttempted = db.attempts.find(
+      a => a.studentId === user.id && a.quizId === quiz.id
+    );
+    if (alreadyAttempted) {
+      alert("You have already attempted this quiz.");
+      return;
+    }
+    setActiveQuiz(quiz);
+    setAnswers({});
+    setSubmitted(false);
+    setResult(null);
+  };
+
+  // ── Registration screen handler ───────────────────────────────────────────
+  const startRegisteredQuiz = () => {
+    if (!studentName.trim()) { alert("Please enter your name."); return; }
+    if (!studentUSN.trim())  { alert("Please enter your USN.");  return; }
+    setShowRegistration(false);
+    launchQuiz(pendingQuiz);
+  };
+
+  // ── Open registration before launching from course view ──────────────────
+  const openRegistrationFor = (quiz) => {
+    const alreadyAttempted = db.attempts.find(
+      a => a.studentId === user.id && a.quizId === quiz.id
+    );
+    if (alreadyAttempted) {
+      alert("You have already attempted this quiz.");
+      return;
+    }
     setPendingQuiz(quiz);
     setShowRegistration(true);
-    setCodeInput("");
-    setCodeError("");
-    return;
-  }
+  };
 
-  setCodeError("Invalid code.");
-};
-
-
-const launchQuiz = (quiz) => {
-
-  const alreadyAttempted = db.attempts.find(
-    a => a.studentId === user.id && a.quizId === quiz.id
-  );
-
-  if (alreadyAttempted) {
-    alert("You have already attempted this quiz.");
-    return;
-  }
-
-  setActiveQuiz(quiz);
-  setAnswers({});
-  setSubmitted(false);
-  setResult(null);
-};
-
-const startRegisteredQuiz = () => {
-
-  if (!studentName.trim()) {
-    alert(
-      "Enter Student Name"
-    );
-    return;
-  }
-
-  if (!studentUSN.trim()) {
-    alert(
-      "Enter USN"
-    );
-    return;
-  }
-
-  setShowRegistration(
-    false
-  );
-
-  launchQuiz(
-    pendingQuiz
-  );
-};
-
-const submitQuiz = () => {
-    if (Object.keys(answers).length < activeQuiz.questions.length) return alert("Please answer all questions before submitting.");
+  // ── Submit quiz ───────────────────────────────────────────────────────────
+  const submitQuiz = () => {
+    if (Object.keys(answers).length < activeQuiz.questions.length) {
+      alert("Please answer all questions before submitting.");
+      return;
+    }
     let score = 0;
-    activeQuiz.questions.forEach((q, i) => { if (answers[i] === q.correctAnswer) score++; });
+    activeQuiz.questions.forEach((q, i) => {
+      if (answers[i] === q.correctAnswer) score++;
+    });
     const attempt = {
-
-  id: genId(),
-
-  studentId:
-    user.id,
-
-  studentName:
-    studentName,
-
-  studentUSN:
-    studentUSN,
-
-  quizId:
-    activeQuiz.id,
-
-  answers:
-    { ...answers },
-
-  score,
-
-  completedAt:
-    new Date().toISOString()
-
-};
-
+      id:          genId(),
+      studentId:   user.id,
+      studentName: studentName,
+      studentUSN:  studentUSN,
+      quizId:      activeQuiz.id,
+      answers:     { ...answers },
+      score,                          // plain number e.g. 4
+      completedAt: new Date().toISOString(),
+    };
     setDb(d => ({ ...d, attempts: [...d.attempts, attempt] }));
     setResult({ score, total: activeQuiz.questions.length });
     setSubmitted(true);
   };
-if (showRegistration) {
-  return (
-    <div
-      style={{
-        minHeight: "100vh",
-        display: "flex",
-        justifyContent: "center",
-        alignItems: "center",
-        background: "#f8fafc"
-      }}
-    >
-      <Card style={{ width: 450 }}>
-        <h2>Student Registration</h2>
 
-        <Input
-          label="Student Name"
-          value={studentName}
-          onChange={(e) =>
-            setStudentName(e.target.value)
-          }
-        />
+  // ── Registration screen ───────────────────────────────────────────────────
+  if (showRegistration) {
+    return (
+      <div style={{ minHeight: "100vh", display: "flex", justifyContent: "center", alignItems: "center", background: "#f8fafc" }}>
+        <Card style={{ width: 450 }}>
+          <h2 style={{ margin: "0 0 6px", fontWeight: 800, fontSize: 22, color: "#0f172a" }}>Student Registration</h2>
+          <p style={{ margin: "0 0 24px", fontSize: 14, color: "#64748b" }}>
+            Enter your details to start: <strong>{pendingQuiz?.title}</strong>
+          </p>
+          <Input
+            label="Full Name"
+            value={studentName}
+            onChange={e => setStudentName(e.target.value)}
+            placeholder="e.g. Priya Patel"
+          />
+          <Input
+            label="USN / Faculty ID"
+            value={studentUSN}
+            onChange={e => setStudentUSN(e.target.value)}
+            placeholder="e.g. 1RV21CS001"
+          />
+          <div style={{ display: "flex", gap: 10, marginTop: 8 }}>
+            <Btn variant="ghost" onClick={() => { setShowRegistration(false); setPendingQuiz(null); }}>
+              Cancel
+            </Btn>
+            <Btn onClick={startRegisteredQuiz}>Start Quiz →</Btn>
+          </div>
+        </Card>
+      </div>
+    );
+  }
 
-        <Input
-          label="USN"
-          value={studentUSN}
-          onChange={(e) =>
-            setStudentUSN(e.target.value)
-          }
-        />
-
-        <div
-          style={{
-            display: "flex",
-            gap: 10
-          }}
-        >
-          <Btn
-            onClick={() => {
-              setShowRegistration(false);
-              setPendingQuiz(null);
-            }}
-          >
-            Cancel
-          </Btn>
-
-          <Btn
-            onClick={startRegisteredQuiz}
-          >
-            Start Quiz
-          </Btn>
-        </div>
-      </Card>
-    </div>
-  );
-}
   // ── Quiz taking / results screen ──────────────────────────────────────────
   if (activeQuiz) {
-    const pct = submitted ? Math.round((result.score / result.total) * 100) : 0;
-    const grade = pct >= 90 ? "A" : pct >= 75 ? "B" : pct >= 60 ? "C" : pct >= 50 ? "D" : "F";
+    const pct        = submitted ? Math.round((result.score / result.total) * 100) : 0;
+    const grade      = pct >= 90 ? "A" : pct >= 75 ? "B" : pct >= 60 ? "C" : pct >= 50 ? "D" : "F";
     const gradeColor = pct >= 75 ? "#059669" : pct >= 50 ? "#d97706" : "#dc2626";
 
     return (
       <div style={{ minHeight: "100vh", background: "#f8fafc" }}>
         <div style={{ background: "#0f172a", padding: "16px 32px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <div style={{ color: "#fff", fontWeight: 800, fontSize: 18 }}>📋 Quizly — {activeQuiz.title}</div>
-          {!submitted && <button onClick={() => setActiveQuiz(null)} style={{ background: "none", border: "1px solid #475569", color: "#94a3b8", padding: "6px 14px", borderRadius: 8, cursor: "pointer", fontFamily: "inherit" }}>Exit Quiz</button>}
+          {!submitted && (
+            <button onClick={() => setActiveQuiz(null)} style={{ background: "none", border: "1px solid #475569", color: "#94a3b8", padding: "6px 14px", borderRadius: 8, cursor: "pointer", fontFamily: "inherit" }}>
+              Exit Quiz
+            </button>
+          )}
         </div>
+
         <div style={{ maxWidth: 760, margin: "40px auto", padding: "0 20px" }}>
           {!submitted ? (
             <>
@@ -1182,19 +1128,23 @@ if (showRegistration) {
                 </div>
                 <p style={{ margin: "6px 0 0", fontSize: 13, color: "#64748b" }}>{Object.keys(answers).length} / {activeQuiz.questions.length} answered</p>
               </div>
+
               {activeQuiz.questions.map((q, qi) => (
                 <Card key={q.id} style={{ marginBottom: 16, border: answers[qi] !== undefined ? "2px solid #bfdbfe" : "1.5px solid #e2e8f0" }}>
-                  <div style={{ fontWeight: 700, marginBottom: 14, color: "#1e293b" }}><span style={{ color: "#2563eb", marginRight: 8 }}>Q{qi+1}.</span>{q.text}</div>
+                  <div style={{ fontWeight: 700, marginBottom: 14, color: "#1e293b" }}>
+                    <span style={{ color: "#2563eb", marginRight: 8 }}>Q{qi + 1}.</span>{q.text}
+                  </div>
                   <div style={{ display: "grid", gap: 8 }}>
                     {q.options.map((opt, oi) => (
                       <label key={oi} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 14px", borderRadius: 8, cursor: "pointer", background: answers[qi] === oi ? "#eff6ff" : "#f8fafc", border: answers[qi] === oi ? "2px solid #2563eb" : "1.5px solid #e2e8f0", transition: "all .15s" }}>
                         <input type="radio" name={`q${qi}`} checked={answers[qi] === oi} onChange={() => setAnswers({ ...answers, [qi]: oi })} style={{ accentColor: "#2563eb" }} />
-                        <span style={{ fontWeight: answers[qi] === oi ? 600 : 400, fontSize: 14 }}>{String.fromCharCode(65+oi)}. {opt}</span>
+                        <span style={{ fontWeight: answers[qi] === oi ? 600 : 400, fontSize: 14 }}>{String.fromCharCode(65 + oi)}. {opt}</span>
                       </label>
                     ))}
                   </div>
                 </Card>
               ))}
+
               <div style={{ textAlign: "center", marginTop: 32 }}>
                 <Btn size="lg" variant="success" onClick={submitQuiz}>Submit Quiz ✓</Btn>
               </div>
@@ -1206,10 +1156,15 @@ if (showRegistration) {
                   <span style={{ color: "#fff", fontSize: 34, fontWeight: 900 }}>{grade}</span>
                 </div>
                 <h2 style={{ margin: "0 0 6px", fontSize: 28, fontWeight: 800, color: gradeColor }}>{pct}%</h2>
-                <p style={{ margin: "0 0 6px", fontSize: 16, color: "#374151" }}>You scored <strong>{result.score}</strong> out of <strong>{result.total}</strong></p>
-                <p style={{ margin: "0 0 24px", fontSize: 14, color: "#64748b" }}>{pct === 100 ? "🎉 Perfect!" : pct >= 75 ? "Great job!" : pct >= 50 ? "Keep practicing!" : "Better luck next time."}</p>
+                <p style={{ margin: "0 0 6px", fontSize: 16, color: "#374151" }}>
+                  You scored <strong>{result.score}</strong> out of <strong>{result.total}</strong>
+                </p>
+                <p style={{ margin: "0 0 24px", fontSize: 14, color: "#64748b" }}>
+                  {pct === 100 ? "🎉 Perfect!" : pct >= 75 ? "Great job!" : pct >= 50 ? "Keep practicing!" : "Better luck next time."}
+                </p>
                 <Btn onClick={() => setActiveQuiz(null)} variant="outline">Back to My Courses</Btn>
               </Card>
+
               <h3 style={{ fontWeight: 800, fontSize: 18, marginBottom: 16 }}>Answer Review</h3>
               {activeQuiz.questions.map((q, qi) => {
                 const correct = answers[qi] === q.correctAnswer;
@@ -1217,7 +1172,7 @@ if (showRegistration) {
                   <Card key={q.id} style={{ marginBottom: 12, border: `2px solid ${correct ? "#bbf7d0" : "#fecaca"}` }}>
                     <div style={{ display: "flex", gap: 10, marginBottom: 10 }}>
                       <span style={{ fontSize: 18 }}>{correct ? "✅" : "❌"}</span>
-                      <span style={{ fontWeight: 700, color: "#1e293b" }}>Q{qi+1}. {q.text}</span>
+                      <span style={{ fontWeight: 700, color: "#1e293b" }}>Q{qi + 1}. {q.text}</span>
                     </div>
                     <div style={{ paddingLeft: 28, display: "grid", gap: 6 }}>
                       {q.options.map((opt, oi) => {
@@ -1225,7 +1180,7 @@ if (showRegistration) {
                         const isSelected = oi === answers[qi];
                         return (
                           <div key={oi} style={{ fontSize: 13, padding: "5px 10px", borderRadius: 6, background: isCorrect ? "#d1fae5" : isSelected ? "#fee2e2" : "#f8fafc", color: isCorrect ? "#065f46" : isSelected ? "#991b1b" : "#64748b", fontWeight: isCorrect || isSelected ? 600 : 400 }}>
-                            {isCorrect ? "✓ " : isSelected ? "✗ " : `${String.fromCharCode(65+oi)}. `}{opt}
+                            {isCorrect ? "✓ " : isSelected ? "✗ " : `${String.fromCharCode(65 + oi)}. `}{opt}
                             {isCorrect && <span style={{ marginLeft: 8, fontSize: 11 }}>(Correct Answer)</span>}
                           </div>
                         );
@@ -1247,20 +1202,18 @@ if (showRegistration) {
       <Sidebar user={user} activeTab={tab} setTab={t => { setTab(t); setSelectedCourse(null); }} tabs={tabs} onLogout={onLogout} />
       <main style={{ flex: 1, padding: 32, background: "#f8fafc", minHeight: "100vh" }}>
 
-        {/* JOIN TAB */}
+        {/* ── JOIN TAB ── */}
         {tab === "join" && (
           <div style={{ maxWidth: 520, margin: "0 auto" }}>
             <h2 style={{ margin: "0 0 6px", fontWeight: 800, fontSize: 26, color: "#0f172a" }}>Join via QR Code</h2>
             <p style={{ margin: "0 0 32px", color: "#64748b" }}>Scan the QR code shared by your teacher, or enter the code manually below.</p>
 
-            {/* Scan illustration */}
             <Card style={{ textAlign: "center", marginBottom: 28, padding: 36, background: "linear-gradient(135deg,#0f172a,#1e3a5f)", border: "none" }}>
               <div style={{ fontSize: 64, marginBottom: 12 }}>📱</div>
               <div style={{ color: "#94a3b8", fontSize: 14, marginBottom: 6 }}>Point your camera at the QR code</div>
               <div style={{ color: "#64748b", fontSize: 12 }}>or enter the code below</div>
             </Card>
 
-            {/* Manual code entry */}
             <Card>
               <h3 style={{ margin: "0 0 16px", fontWeight: 700, fontSize: 16, color: "#1e293b" }}>Enter Code Manually</h3>
               <div style={{ display: "flex", gap: 10 }}>
@@ -1278,7 +1231,6 @@ if (showRegistration) {
                 Use a <strong>CRS-XXXXX</strong> code to join a full course, or a <strong>QZ-XXXXX</strong> code to directly attempt a quiz.
               </p>
 
-              {/* Demo hint */}
               <div style={{ marginTop: 20, padding: 14, background: "#f1f5f9", borderRadius: 10, border: "1px solid #e2e8f0" }}>
                 <div style={{ fontSize: 12, fontWeight: 700, color: "#475569", marginBottom: 10, textTransform: "uppercase", letterSpacing: 0.5 }}>Demo Codes to Try</div>
                 <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
@@ -1300,7 +1252,7 @@ if (showRegistration) {
           </div>
         )}
 
-        {/* MY COURSES TAB */}
+        {/* ── MY COURSES TAB — course list ── */}
         {tab === "mycourses" && !selectedCourse && (
           <>
             <h2 style={{ margin: "0 0 6px", fontWeight: 800, fontSize: 26, color: "#0f172a" }}>My Courses</h2>
@@ -1332,6 +1284,7 @@ if (showRegistration) {
           </>
         )}
 
+        {/* ── MY COURSES TAB — quiz list inside a course ── */}
         {tab === "mycourses" && selectedCourse && (
           <>
             <button onClick={() => setSelectedCourse(null)} style={{ background: "none", border: "none", color: "#2563eb", cursor: "pointer", fontWeight: 600, padding: 0, fontSize: 14, marginBottom: 12 }}>← Back to My Courses</button>
@@ -1339,75 +1292,81 @@ if (showRegistration) {
             <p style={{ margin: "0 0 24px", color: "#64748b" }}>{selectedCourse.description}</p>
             {db.quizzes.filter(q => q.courseId === selectedCourse.id).length === 0
               ? <Card><p style={{ color: "#94a3b8", textAlign: "center" }}>No quizzes available yet.</p></Card>
-              : <div style={{ display: "grid", gap: 14 }}>
-                {db.quizzes.filter(q => q.courseId === selectedCourse.id).map(q => {
-                  const attempt = [...myAttempts].reverse().find(a => a.quizId === q.id);
-                  const pct     = attempt ? Math.round((attempt.score / q.questions.length) * 100) : null;
-                  return (
-                    <Card key={q.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                      <div>
-                        <div style={{ fontWeight: 700, fontSize: 16, color: "#1e293b" }}>{q.title}</div>
-                        <div style={{ fontSize: 13, color: "#64748b", marginTop: 2 }}>{q.description}</div>
-                        <div style={{ fontSize: 12, color: "#94a3b8", marginTop: 6 }}>
-                          ❓ {q.questions.length} questions
-                          {pct !== null && <span style={{ color: pct >= 75 ? "#059669" : "#d97706", fontWeight: 700, marginLeft: 8 }}>· Last: {pct}%</span>}
+              : (
+                <div style={{ display: "grid", gap: 14 }}>
+                  {db.quizzes.filter(q => q.courseId === selectedCourse.id).map(q => {
+                    const attempt = [...myAttempts].reverse().find(a => a.quizId === q.id);
+                    const score   = attempt ? (typeof attempt.score === "number" ? attempt.score : parseInt(attempt.score, 10)) : null;
+                    const pct     = (attempt && score !== null) ? Math.round((score / q.questions.length) * 100) : null;
+                    return (
+                      <Card key={q.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                        <div>
+                          <div style={{ fontWeight: 700, fontSize: 16, color: "#1e293b" }}>{q.title}</div>
+                          <div style={{ fontSize: 13, color: "#64748b", marginTop: 2 }}>{q.description}</div>
+                          <div style={{ fontSize: 12, color: "#94a3b8", marginTop: 6 }}>
+                            ❓ {q.questions.length} questions
+                            {pct !== null && (
+                              <span style={{ color: pct >= 75 ? "#059669" : "#d97706", fontWeight: 700, marginLeft: 8 }}>
+                                · Last: {pct}%
+                              </span>
+                            )}
+                          </div>
                         </div>
-                      </div>
-                      {attempt ? (
-  <Btn
-    size="sm"
-    disabled
-    variant="outline"
-  >
-    Completed ✓
-  </Btn>
-) : (
-  <Btn
-    size="sm"
-    onClick={() => launchQuiz(q)}
-  >
-    Start Quiz →
-  </Btn>
-)}
-                    </Card>
-                  );
-                })}
-              </div>
+                        {attempt ? (
+                          <Btn size="sm" disabled variant="outline">Completed ✓</Btn>
+                        ) : (
+                          // ← goes through registration so name/USN are always captured
+                          <Btn size="sm" onClick={() => openRegistrationFor(q)}>Start Quiz →</Btn>
+                        )}
+                      </Card>
+                    );
+                  })}
+                </div>
+              )
             }
           </>
         )}
 
-        {/* MY RESULTS TAB */}
+        {/* ── MY RESULTS TAB ── */}
         {tab === "myresults" && (
           <>
             <h2 style={{ margin: "0 0 6px", fontWeight: 800, fontSize: 26, color: "#0f172a" }}>My Results</h2>
             <p style={{ margin: "0 0 24px", color: "#64748b" }}>All your quiz attempts.</p>
             {myAttempts.length === 0
               ? <Card><p style={{ color: "#94a3b8", textAlign: "center" }}>No attempts yet.</p></Card>
-              : <div style={{ display: "grid", gap: 14 }}>
-                {[...myAttempts].reverse().map(a => {
-                  const quiz   = db.quizzes.find(q => q.id === a.quizId);
-                  const course = quiz ? db.courses.find(c => c.id === quiz.courseId) : null;
-                  const pct    = quiz ? Math.round((a.score / quiz.questions.length) * 100) : 0;
-                  const color  = pct >= 75 ? "#059669" : pct >= 50 ? "#d97706" : "#dc2626";
-                  return (
-                    <Card key={a.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                      <div>
-                        <div style={{ fontWeight: 700, fontSize: 15, color: "#1e293b" }}>{quiz?.title || "Deleted Quiz"}</div>
-                        <div style={{ fontSize: 13, color: "#64748b" }}>📚 {course?.name || "—"}</div>
-                        <div style={{ fontSize: 12, color: "#94a3b8", marginTop: 4 }}>{new Date(a.completedAt).toLocaleString()}</div>
-                      </div>
-                      <div style={{ textAlign: "right" }}>
-                        <div style={{ fontWeight: 900, fontSize: 28, color }}>{pct}%</div>
-                        <div style={{ fontSize: 13, color: "#94a3b8" }}>{a.score}/{quiz?.questions?.length} correct</div>
-                      </div>
-                    </Card>
-                  );
-                })}
-              </div>
+              : (
+                <div style={{ display: "grid", gap: 14 }}>
+                  {[...myAttempts].reverse().map(a => {
+                    const quiz   = db.quizzes.find(q => q.id === a.quizId);
+                    const course = quiz ? db.courses.find(c => c.id === quiz.courseId) : null;
+                    const num    = typeof a.score === "number" ? a.score : parseInt(a.score, 10);
+                    const total  = quiz?.questions?.length ?? 0;
+                    const pct    = total > 0 ? Math.round((num / total) * 100) : 0;
+                    const color  = pct >= 75 ? "#059669" : pct >= 50 ? "#d97706" : "#dc2626";
+                    return (
+                      <Card key={a.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                        <div>
+                          <div style={{ fontWeight: 700, fontSize: 15, color: "#1e293b" }}>{quiz?.title || "Deleted Quiz"}</div>
+                          <div style={{ fontSize: 13, color: "#64748b" }}>📚 {course?.name || "—"}</div>
+                          <div style={{ fontSize: 12, color: "#94a3b8", marginTop: 4 }}>
+                            {a.completedAt ? new Date(a.completedAt).toLocaleString() : "—"}
+                          </div>
+                        </div>
+                        <div style={{ textAlign: "right" }}>
+                          <div style={{ fontWeight: 900, fontSize: 28, color }}>{pct}%</div>
+                          <div style={{ fontSize: 13, color: "#94a3b8" }}>
+                            {isNaN(num) ? "?" : num} / {total || "?"} correct
+                          </div>
+                        </div>
+                      </Card>
+                    );
+                  })}
+                </div>
+              )
             }
           </>
         )}
+
       </main>
     </div>
   );
@@ -1415,30 +1374,88 @@ if (showRegistration) {
 
 // ─── LOGIN PAGE ───────────────────────────────────────────────────────────────
 const LoginPage = ({ db, onLogin }) => {
-  const [email, setEmail]     = useState("");
+  const [email, setEmail]       = useState("");
   const [password, setPassword] = useState("");
-  const [err, setErr]         = useState("");
+  const [err, setErr]           = useState("");
 
   const demos = [
-    { label: "Admin",              email: "admin@quizly.com",  password: "admin123", role: "admin"   },
-    { label: "Teacher (Dr. Sharma)",email: "ananya@quizly.com",password: "pass123",  role: "teacher" },
-    { label: "Teacher (Prof. Mehta)",email:"rahul@quizly.com", password: "pass123",  role: "teacher" },
-    { label: "Student (Priya)",    email: "priya@quizly.com",  password: "pass123",  role: "student" },
-    { label: "Student (Arjun)",    email: "arjun@quizly.com",  password: "pass123",  role: "student" },
-    
+    { label: "Admin",                role: "admin"   },
+    { label: "Teacher (Dr. Sharma)", role: "teacher" },
+    { label: "Teacher (Prof. Mehta)",role: "teacher" },
+    { label: "Student (Priya)",      role: "student" },
+    { label: "Student (Arjun)",      role: "student" },
   ];
 
-  import {
-  signInWithEmailAndPassword
-} from "firebase/auth";
+  // ── Fix 1: handleLogin defined inside the component ───────────────────────
+ 
 
-import {
-  getDoc,
-  doc
-} from "firebase/firestore";
+  // ── Fix 2: demo buttons auto-fill from db, not hardcoded — no email shown ─
+  const handleDemoClick = (label) => {
+    const roleMap = {
+      "Admin":                 "admin",
+      "Teacher (Dr. Sharma)":  "teacher",
+      "Teacher (Prof. Mehta)": "teacher",
+      "Student (Priya)":       "student",
+      "Student (Arjun)":       "student",
+    };
+    const nameMap = {
+      "Admin":                 "Super Admin",
+      "Teacher (Dr. Sharma)":  "Dr. Ananya Sharma",
+      "Teacher (Prof. Mehta)": "Prof. Rahul Mehta",
+      "Student (Priya)":       "Priya Patel",
+      "Student (Arjun)":       "Arjun Nair",
+    };
+    const user = db.users.find(u => u.name === nameMap[label] && u.role === roleMap[label]);
+    if (user) {
+      setEmail(user.email);
+      setPassword(user.password);
+      setErr("");
+    }
+  };
+const handleLogin = async () => {
 
+  try {
+
+    const cred =
+      await signInWithEmailAndPassword(
+        auth,
+        email,
+        password
+      );
+
+    const userRef =
+      doc(
+        firestore,
+        "users",
+        cred.user.uid
+      );
+
+    const snap =
+      await getDoc(userRef);
+
+    if (!snap.exists()) {
+      setErr("User profile not found");
+      return;
+    }
+
+    onLogin({
+      id: cred.user.uid,
+      ...snap.data()
+    });
+
+  } catch (err) {
+
+    console.error(err);
+
+    setErr("Invalid email or password");
+
+  }
+
+};
   return (
     <div style={{ minHeight: "100vh", display: "flex", background: "#f1f5f9" }}>
+
+      {/* ── Left panel ── */}
       <div style={{ flex: 1, background: "#0f172a", display: "flex", flexDirection: "column", justifyContent: "center", padding: "60px", position: "relative", overflow: "hidden" }}>
         <div style={{ position: "absolute", inset: 0, backgroundImage: "radial-gradient(circle at 30% 50%, #1e40af22 0%, transparent 60%), radial-gradient(circle at 80% 20%, #7c3aed22 0%, transparent 50%)" }} />
         <div style={{ position: "relative", zIndex: 1 }}>
@@ -1447,30 +1464,66 @@ import {
           <p style={{ color: "#94a3b8", fontSize: 16, lineHeight: 1.6, maxWidth: 380, marginBottom: 48 }}>
             QR-powered quiz platform. Teachers share QR codes — students scan to access only their assigned courses.
           </p>
-          <p style={{ color: "#64748b", fontSize: 12, marginBottom: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: 1 }}>Demo Accounts</p>
+
+          <p style={{ color: "#64748b", fontSize: 12, marginBottom: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: 1 }}>
+            Quick Login
+          </p>
+
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-            {demos.map((a, i) => (
-              <button key={i} onClick={() => { setEmail(a.email); setPassword(a.password); setErr(""); }}
-                style={{ background: "#1e293b", border: "1px solid #334155", borderRadius: 8, padding: "10px 14px", cursor: "pointer", textAlign: "left", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <div>
-                  <span style={{ color: "#f1f5f9", fontWeight: 600, fontSize: 13 }}>{a.label}</span>
-                  <span style={{ color: "#64748b", fontSize: 12, marginLeft: 8 }}>{a.email}</span>
-                </div>
-                <Badge role={a.role} />
+            {demos.map((d, i) => (
+              <button
+                key={i}
+                onClick={() => handleDemoClick(d.label)}
+                style={{ background: "#1e293b", border: "1px solid #334155", borderRadius: 8, padding: "10px 14px", cursor: "pointer", textAlign: "left", display: "flex", justifyContent: "space-between", alignItems: "center", transition: "border-color .15s" }}
+                onMouseEnter={e => e.currentTarget.style.borderColor = "#475569"}
+                onMouseLeave={e => e.currentTarget.style.borderColor = "#334155"}
+              >
+                {/* ── Fix 2: only label shown, no email or password ── */}
+                <span style={{ color: "#f1f5f9", fontWeight: 600, fontSize: 13 }}>{d.label}</span>
+                <Badge role={d.role} />
               </button>
             ))}
           </div>
+
+          <p style={{ color: "#334155", fontSize: 12, marginTop: 16 }}>
+            Click any account above to auto-fill credentials.
+          </p>
         </div>
       </div>
+
+      {/* ── Right panel ── */}
       <div style={{ width: 440, display: "flex", alignItems: "center", justifyContent: "center", padding: 40 }}>
         <div style={{ width: "100%" }}>
           <h2 style={{ fontWeight: 800, fontSize: 26, color: "#0f172a", margin: "0 0 6px" }}>Welcome back</h2>
           <p style={{ color: "#64748b", margin: "0 0 32px" }}>Sign in to your account</p>
-          <Input label="Email Address" type="email"    value={email}    onChange={e => setEmail(e.target.value)}    placeholder="Enter your email" />
-          <Input label="Password"      type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="Enter your password" onKeyDown={e => e.key === "Enter" && handleLogin()} />
-          {err && <p style={{ color: "#dc2626", fontSize: 13, margin: "-8px 0 12px" }}>{err}</p>}
-          <Btn size="lg" onClick={handleLogin} style={{ width: "100%", justifyContent: "center" }}>Sign In →</Btn>
-          <p style={{ color: "#94a3b8", fontSize: 12, marginTop: 24, textAlign: "center" }}>Click a demo account on the left to auto-fill credentials.</p>
+
+          <Input
+            label="Email Address"
+            type="email"
+            value={email}
+            onChange={e => { setEmail(e.target.value); setErr(""); }}
+            placeholder="Enter your email"
+          />
+          <Input
+            label="Password"
+            type="password"
+            value={password}
+            onChange={e => { setPassword(e.target.value); setErr(""); }}
+            placeholder="Enter your password"
+            onKeyDown={e => e.key === "Enter" && handleLogin()}
+          />
+
+          {err && (
+            <p style={{ color: "#dc2626", fontSize: 13, margin: "-8px 0 12px" }}>⚠ {err}</p>
+          )}
+
+          <Btn size="lg" onClick={handleLogin} style={{ width: "100%", justifyContent: "center" }}>
+            Sign In →
+          </Btn>
+
+          <p style={{ color: "#94a3b8", fontSize: 12, marginTop: 24, textAlign: "center" }}>
+            Click a demo account on the left to auto-fill credentials.
+          </p>
         </div>
       </div>
     </div>
@@ -1481,41 +1534,43 @@ import {
 export default function App() {
 
   const [db, setDb] = useState(() => {
-  const saved = localStorage.getItem("quizly-db");
-  return saved ? JSON.parse(saved) : SEED;
-});
-useEffect(() => {
-  localStorage.setItem(
-    "quizly-db",
-    JSON.stringify(db)
-  );
-}, [db]);
+    try {
+      const saved = localStorage.getItem("quizly-db");
+      if (!saved) return SEED;
+      const parsed = JSON.parse(saved);
+      // Ensure all SEED users still exist (guards against stale saves missing new fields)
+      const hasAllUsers = SEED.users.every(su => parsed.users?.find(u => u.id === su.id));
+      return hasAllUsers ? parsed : SEED;
+    } catch {
+      return SEED;
+    }
+  });
+
+  useEffect(() => {
+    localStorage.setItem("quizly-db", JSON.stringify(db));
+  }, [db]);
+
   const [currentUser, setCurrentUser] = useState(null);
 
   const logout = () => setCurrentUser(null);
 
-  // Read QR code from URL
+  // ── QR code from URL ──────────────────────────────────────────────────────
   const params = new URLSearchParams(window.location.search);
   const qrCode = params.get("code");
 
-  // QR access without login
+  // ── Fix 3: guest gets a unique id per session, not "guest" ────────────────
   if (!currentUser) {
-
     if (qrCode) {
-
       const quiz = db.quizzes.find(
         q => q.joinCode.toUpperCase() === qrCode.toUpperCase()
       );
-
       if (quiz) {
-
         const guestUser = {
-          id: "guest",
+          id:   genId(), // unique per session so attempts don't collide
           name: "",
-          usn: "",
-          role: "student"
+          usn:  "",
+          role: "student",
         };
-
         return (
           <StudentApp
             db={db}
@@ -1527,45 +1582,15 @@ useEffect(() => {
       }
     }
 
-    return (
-      <LoginPage
-        db={db}
-        onLogin={setCurrentUser}
-      />
-    );
+    return <LoginPage db={db} onLogin={setCurrentUser} />;
   }
 
-  // Admin
+  // ── Route by role ─────────────────────────────────────────────────────────
   if (currentUser.role === "admin") {
-    return (
-      <AdminApp
-        db={db}
-        setDb={setDb}
-        user={currentUser}
-        onLogout={logout}
-      />
-    );
+    return <AdminApp   db={db} setDb={setDb} user={currentUser} onLogout={logout} />;
   }
-
-  // Teacher
   if (currentUser.role === "teacher") {
-    return (
-      <TeacherApp
-        db={db}
-        setDb={setDb}
-        user={currentUser}
-        onLogout={logout}
-      />
-    );
+    return <TeacherApp db={db} setDb={setDb} user={currentUser} onLogout={logout} />;
   }
-
-  // Student
-  return (
-    <StudentApp
-      db={db}
-      setDb={setDb}
-      user={currentUser}
-      onLogout={logout}
-    />
-  );
+  return   <StudentApp db={db} setDb={setDb} user={currentUser} onLogout={logout} />;
 }
