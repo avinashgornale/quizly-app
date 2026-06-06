@@ -683,35 +683,42 @@ const TeacherApp = ({ db, setDb, user, onLogout }) => {
         )}
 
         {tab === "courses" && (
-          <>
-            <h2 style={{ margin: "0 0 24px", fontWeight: 800, fontSize: 26, color: "#0f172a" }}>My Courses</h2>
-            {myCourses.length === 0
-              ? <Card><p style={{ color: "#94a3b8", textAlign: "center" }}>No courses assigned yet.</p></Card>
-              : <div style={{ display: "grid", gap: 14 }}>
-                {myCourses.map(c => {
-                  const qz       = myQuizzes.filter(q => q.courseId === c.id);
-                  const enrolled = db.enrollments.filter(e => e.courseId === c.id).length;
-                  return (
-                    <Card key={c.id}>
-                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-                        <div style={{ flex: 1 }}>
-                          <div style={{ fontWeight: 700, fontSize: 16, color: "#1e293b", marginBottom: 4 }}>{c.name}</div>
-                          <div style={{ fontSize: 13, color: "#64748b", marginBottom: 10 }}>{c.description}</div>
-                          <div style={{ fontSize: 12, color: "#94a3b8", display: "flex", gap: 12, alignItems: "center" }}>
-                            <span>📝 {qz.length} quiz{qz.length !== 1 ? "zes" : ""}</span>
-                            <span>🎓 {enrolled} students enrolled</span>
-                            <span style={{ background: "#f1f5f9", border: "1px solid #e2e8f0", borderRadius: 6, padding: "2px 8px", fontFamily: "monospace", fontWeight: 700, color: "#475569" }}>{c.joinCode}</span>
-                          </div>
-                        </div>
-                        <Btn size="sm" variant="purple" onClick={() => setQrTarget({ title: c.name, code: c.joinCode, description: `Share this QR to give students access to "${c.name}"` })}>📱 QR Code</Btn>
-                      </div>
-                    </Card>
-                  );
-                })}
-              </div>
-            }
-          </>
-        )}
+  <>
+    <div
+      style={{
+        display: "flex",
+        justifyContent: "space-between",
+        marginBottom: 16
+      }}
+    >
+      <h2>My Courses</h2>
+
+      <Btn
+        onClick={() => {
+          setForm({
+            title: "",
+            code: ""
+          });
+          setModal("course");
+        }}
+      >
+        + New Course
+      </Btn>
+    </div>
+
+    <Card>
+      {myCourses.length === 0 ? (
+        <Empty>No courses assigned yet.</Empty>
+      ) : (
+        myCourses.map(course => (
+          <div key={course.id}>
+            {course.title}
+          </div>
+        ))
+      )}
+    </Card>
+  </>
+)}
 
         {tab === "quizzes" && (
           <>
@@ -912,6 +919,60 @@ const TeacherApp = ({ db, setDb, user, onLogout }) => {
         )}
 
       </main>
+
+      {modal === "course" && (
+  <Modal
+    title="New Course"
+    onClose={() => setModal(null)}
+  >
+    <Input
+      label="Course Name"
+      value={form.title || ""}
+      onChange={e =>
+        setForm({
+          ...form,
+          title: e.target.value
+        })
+      }
+    />
+
+    <Input
+      label="Course Code"
+      value={form.code || ""}
+      onChange={e =>
+        setForm({
+          ...form,
+          code: e.target.value
+        })
+      }
+    />
+
+    <div style={{ marginTop: 16 }}>
+      <Btn
+        onClick={async () => {
+
+          const id = Date.now().toString();
+
+          await setDoc(
+            doc(firestore, "courses", id),
+            {
+              id,
+              title: form.title,
+              code: form.code,
+              teacherId: user.id
+            }
+          );
+
+          setModal(null);
+
+          window.location.reload();
+        }}
+      >
+        Create Course
+      </Btn>
+    </div>
+  </Modal>
+)}
 
       {modal === "quiz" && (
         <Modal title={form.id ? "Edit Quiz" : "New Quiz"} onClose={() => setModal(null)}>
