@@ -1,3 +1,13 @@
+import { auth } from "./firebase";
+
+import {
+  createUserWithEmailAndPassword
+} from "firebase/auth";
+
+import {
+  doc,
+  setDoc
+} from "firebase/firestore";
 import { useState, useEffect, useRef } from "react";
 
 const genId = () => Math.random().toString(36).substr(2, 9);
@@ -306,12 +316,39 @@ const AdminApp = ({ db, setDb, user, onLogout }) => {
   const openModal = (type, data = {}) => { setModal(type); setForm(data); setErr(""); };
   const closeModal = () => { setModal(null); setForm({}); setErr(""); };
 
-  const saveUser = () => {
-    if (!form.name || !form.email || !form.password || !form.role) return setErr("All fields required.");
-    if (db.users.find(u => u.email === form.email && u.id !== form.id)) return setErr("Email already exists.");
-    setDb(d => ({ ...d, users: form.id ? d.users.map(u => u.id === form.id ? { ...u, ...form } : u) : [...d.users, { ...form, id: genId() }] }));
-    closeModal();
-  };
+  const saveUser = async () => {
+
+  try {
+
+    const cred =
+      await createUserWithEmailAndPassword(
+        auth,
+        form.email,
+        form.password
+      );
+
+    await setDoc(
+      doc(db, "users", cred.user.uid),
+      {
+        uid: cred.user.uid,
+        name: form.name,
+        email: form.email,
+        role: form.role,
+        createdAt: new Date().toISOString()
+      }
+    );
+
+    alert("User created successfully");
+
+    setModal(null);
+
+  } catch (err) {
+
+    alert(err.message);
+
+  }
+
+};
 
   const deleteUser = (id) => { if (!window.confirm("Delete this user?")) return; setDb(d => ({ ...d, users: d.users.filter(u => u.id !== id) })); };
 
@@ -1391,11 +1428,14 @@ const LoginPage = ({ db, onLogin }) => {
     
   ];
 
-  const handleLogin = () => {
-    const user = db.users.find(u => u.email === email && u.password === password);
-    if (user) { setErr(""); onLogin(user); }
-    else setErr("Invalid email or password.");
-  };
+  import {
+  signInWithEmailAndPassword
+} from "firebase/auth";
+
+import {
+  getDoc,
+  doc
+} from "firebase/firestore";
 
   return (
     <div style={{ minHeight: "100vh", display: "flex", background: "#f1f5f9" }}>
@@ -1440,8 +1480,16 @@ const LoginPage = ({ db, onLogin }) => {
 // ─── ROOT ─────────────────────────────────────────────────────────────────────
 export default function App() {
 
-  const [db, setDb] = useState(SEED);
-
+  const [db, setDb] = useState(() => {
+  const saved = localStorage.getItem("quizly-db");
+  return saved ? JSON.parse(saved) : SEED;
+});
+useEffect(() => {
+  localStorage.setItem(
+    "quizly-db",
+    JSON.stringify(db)
+  );
+}, [db]);
   const [currentUser, setCurrentUser] = useState(null);
 
   const logout = () => setCurrentUser(null);
