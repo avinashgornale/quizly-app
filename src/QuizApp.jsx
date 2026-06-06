@@ -1421,12 +1421,18 @@ const handleLogin = async () => {
 
   try {
 
-    const cred =
-      await signInWithEmailAndPassword(
-        auth,
-        email,
-        password
-      );
+    console.log("Trying login...");
+console.log("Email:", email);
+console.log("Password:", password);
+
+const cred = await signInWithEmailAndPassword(
+  auth,
+  email.trim(),
+  password.trim()
+);
+
+console.log("LOGIN SUCCESS");
+console.log("UID:", cred.user.uid);
 
     const userRef =
       doc(
@@ -1450,11 +1456,16 @@ const handleLogin = async () => {
 
   } catch (err) {
 
-    console.error(err);
+  alert(
+    "ERROR CODE: " +
+    err.code +
+    "\n\nMESSAGE: " +
+    err.message
+  );
 
-    setErr("Invalid email or password");
+  setErr(err.code);
 
-  }
+}
 
 };
   return (
