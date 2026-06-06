@@ -708,7 +708,15 @@ const TeacherApp = ({ db, setDb, user, onLogout }) => {
 
     <Card>
       {myCourses.length === 0 ? (
-        <Empty>No courses assigned yet.</Empty>
+        <div
+  style={{
+    textAlign: "center",
+    padding: "40px",
+    color: "#64748b"
+  }}
+>
+  No courses assigned yet.
+</div>
       ) : (
         myCourses.map(course => (
           <div key={course.id}>
