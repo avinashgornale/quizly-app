@@ -4,7 +4,10 @@ import { auth, firestore } from "./firebase";
 
 import {
   signInWithEmailAndPassword,
-  createUserWithEmailAndPassword
+  createUserWithEmailAndPassword,
+  onAuthStateChanged,
+  sendPasswordResetEmail,
+  signOut
 } from "firebase/auth";
 
 import {
@@ -15,7 +18,8 @@ import {
   doc,
   setDoc,
   deleteDoc,
-  updateDoc
+  updateDoc,
+  onSnapshot
 } from "firebase/firestore";
 
 const genId = () => Math.random().toString(36).substr(2, 9);
@@ -775,6 +779,58 @@ const TeacherApp = ({ db, setDb, user, onLogout }) => {
     URL.revokeObjectURL(url);
   };
 
+  const exportResultsPdf = () => {
+    const rows = filteredAttempts.map((a, i) => {
+      const quiz = db.quizzes.find(q => q.id === a.quizId);
+      const course = db.courses.find(c => c.id === quiz?.courseId);
+      const pct = getScorePercent(a);
+      const total = quiz?.questions?.length ?? "?";
+      const num = typeof a.score === "number" ? a.score : parseInt(a.score, 10);
+      return `
+        <tr>
+          <td>${i + 1}</td>
+          <td>${a.studentName || "-"}</td>
+          <td>${a.studentUSN || "-"}</td>
+          <td>${quiz?.title || "-"}</td>
+          <td>${course?.name || "-"}</td>
+          <td>${isNaN(num) ? "?" : num} / ${total}</td>
+          <td>${pct}%</td>
+        </tr>`;
+    }).join("");
+
+    const html = `
+      <html>
+        <head>
+          <title>Quiz Results</title>
+          <style>
+            body { font-family: Arial, sans-serif; padding: 24px; color: #111827; }
+            h1 { font-size: 22px; margin-bottom: 4px; }
+            p { color: #64748b; margin-top: 0; }
+            table { width: 100%; border-collapse: collapse; margin-top: 20px; font-size: 12px; }
+            th, td { border: 1px solid #e5e7eb; padding: 8px; text-align: left; }
+            th { background: #f8fafc; }
+          </style>
+        </head>
+        <body>
+          <h1>Quiz Results</h1>
+          <p>${new Date().toLocaleString()}</p>
+          <table>
+            <thead><tr><th>#</th><th>Name</th><th>USN</th><th>Quiz</th><th>Course</th><th>Score</th><th>Score %</th></tr></thead>
+            <tbody>${rows || '<tr><td colspan="7">No results available.</td></tr>'}</tbody>
+          </table>
+          <script>window.onload = () => window.print();</script>
+        </body>
+      </html>`;
+
+    const win = window.open("", "_blank");
+    if (!win) {
+      alert("Please allow popups to export PDF.");
+      return;
+    }
+    win.document.write(html);
+    win.document.close();
+  };
+
   // Per-quiz summary cards for the results header
   const quizSummaries = myQuizzes.map(q => {
     const attempts = teacherAttempts.filter(a => a.quizId === q.id);
@@ -951,7 +1007,7 @@ const TeacherApp = ({ db, setDb, user, onLogout }) => {
           <>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24 }}>
               <h2 style={{ margin: 0, fontWeight: 800, fontSize: 26, color: "#0f172a" }}> Student Results</h2>
-              <Btn variant="success" onClick={exportResults}> Export CSV</Btn>
+              <div style={{ display: "flex", gap: 8 }}><Btn variant="success" onClick={exportResults}>Export CSV</Btn><Btn variant="outline" onClick={exportResultsPdf}>Export PDF</Btn></div>
             </div>
 
            {/* Summary cards per quiz */}
@@ -1192,7 +1248,19 @@ useEffect(() => {
   //  Registration screen handler 
   const startRegisteredQuiz = () => {
     if (!studentName.trim()) { alert("Please enter your name."); return; }
-    if (!studentUSN.trim()) { alert("Please enter your USN.");  return; }
+    if (!studentUSN.trim()) { alert("Please enter your USN."); return; }
+
+    const normalizedUSN = studentUSN.trim().toLowerCase();
+    const sameUsnAttempt = db.attempts.find(a =>
+      a.quizId === pendingQuiz?.id &&
+      (a.studentUSN || "").trim().toLowerCase() === normalizedUSN
+    );
+
+    if (sameUsnAttempt) {
+      alert("This USN has already attempted this quiz.");
+      return;
+    }
+
     setShowRegistration(false);
     launchQuiz(pendingQuiz);
   };
@@ -1214,6 +1282,19 @@ useEffect(() => {
   const submitQuiz = async () => {
     if (Object.keys(answers).length < activeQuiz.questions.length) {
       alert("Please answer all questions before submitting.");
+      return;
+    }
+
+    const normalizedUSN = studentUSN.trim().toLowerCase();
+    const sameUsnAttempt = db.attempts.find(a =>
+      a.quizId === activeQuiz.id &&
+      (a.studentUSN || "").trim().toLowerCase() === normalizedUSN
+    );
+
+    if (sameUsnAttempt) {
+      alert("This USN has already attempted this quiz.");
+      setActiveQuiz(null);
+      setTab("myresults");
       return;
     }
 
@@ -1637,7 +1718,20 @@ console.log("UID:", cred.user.uid);
   setErr(err.code);
 
 }
+};
 
+const handleResetPassword = async () => {
+  if (!email.trim()) {
+    alert("Enter your email address first.");
+    return;
+  }
+
+  try {
+    await sendPasswordResetEmail(auth, email.trim());
+    alert("Password reset email sent. Check your inbox.");
+  } catch (err) {
+    alert(err.message);
+  }
 };
   return (
     <div style={{ minHeight: "100vh", display: "flex", background: "#f1f5f9" }}>
@@ -1650,30 +1744,6 @@ console.log("UID:", cred.user.uid);
           <h1 style={{ color: "#fff", fontWeight: 900, fontSize: 40, margin: "0 0 16px", letterSpacing: -1 }}>Quizly</h1>
           <p style={{ color: "#94a3b8", fontSize: 16, lineHeight: 1.6, maxWidth: 380, marginBottom: 48 }}>
             QR-powered quiz platform. Teachers share QR codes  students scan to access only their assigned courses.
-          </p>
-
-          <p style={{ color: "#64748b", fontSize: 12, marginBottom: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: 1 }}>
-            Quick Login
-          </p>
-
-          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-           {demos.map((d, i) => (
-              <button
-                key={i}
-                onClick={() => handleDemoClick(d.label)}
-                style={{ background: "#1e293b", border: "1px solid #334155", borderRadius: 8, padding: "10px 14px", cursor: "pointer", textAlign: "left", display: "flex", justifyContent: "space-between", alignItems: "center", transition: "border-color .15s" }}
-                onMouseEnter={e => e.currentTarget.style.borderColor = "#475569"}
-                onMouseLeave={e => e.currentTarget.style.borderColor = "#334155"}
-              >
-               {/*  Fix 2: only label shown, no email or password  */}
-                <span style={{ color: "#f1f5f9", fontWeight: 600, fontSize: 13 }}>{d.label}</span>
-                <Badge role={d.role} />
-              </button>
-            ))}
-          </div>
-
-          <p style={{ color: "#334155", fontSize: 12, marginTop: 16 }}>
-            Click any account above to auto-fill credentials.
           </p>
         </div>
       </div>
@@ -1705,12 +1775,11 @@ console.log("UID:", cred.user.uid);
           )}
 
           <Btn size="lg" onClick={handleLogin} style={{ width: "100%", justifyContent: "center" }}>
-            Sign In 
+            Sign In
           </Btn>
-
-          <p style={{ color: "#94a3b8", fontSize: 12, marginTop: 24, textAlign: "center" }}>
-            Click a demo account on the left to auto-fill credentials.
-          </p>
+          <button onClick={handleResetPassword} style={{ marginTop: 12, width: "100%", background: "transparent", border: "none", color: "#2563eb", cursor: "pointer", fontFamily: "inherit", fontWeight: 600 }}>
+            Reset Password
+          </button>
         </div>
       </div>
     </div>
@@ -1727,6 +1796,7 @@ export default function App() {
   attempts: [],
   enrollments: []
 });
+const [dataLoading, setDataLoading] = useState(true);
 
   useEffect(() => {
 
@@ -1783,11 +1853,38 @@ export default function App() {
         ...d.data()
       }))
     });
+    setDataLoading(false);
   };
 
   loadData();
 
 }, []);
+
+  useEffect(() => {
+    const unsubUsers = onSnapshot(collection(firestore, "users"), snap => {
+      setDb(prev => ({ ...prev, users: snap.docs.map(d => ({ id: d.id, ...d.data() })) }));
+    });
+    const unsubCourses = onSnapshot(collection(firestore, "courses"), snap => {
+      setDb(prev => ({ ...prev, courses: snap.docs.map(d => ({ id: d.id, ...d.data() })) }));
+    });
+    const unsubQuizzes = onSnapshot(collection(firestore, "quizzes"), snap => {
+      setDb(prev => ({ ...prev, quizzes: snap.docs.map(d => ({ id: d.id, ...d.data() })) }));
+    });
+    const unsubAttempts = onSnapshot(collection(firestore, "attempts"), snap => {
+      setDb(prev => ({ ...prev, attempts: snap.docs.map(d => ({ id: d.id, ...d.data() })) }));
+    });
+    const unsubEnrollments = onSnapshot(collection(firestore, "enrollments"), snap => {
+      setDb(prev => ({ ...prev, enrollments: snap.docs.map(d => ({ id: d.id, ...d.data() })) }));
+    });
+
+    return () => {
+      unsubUsers();
+      unsubCourses();
+      unsubQuizzes();
+      unsubAttempts();
+      unsubEnrollments();
+    };
+  }, []);
 
   const [currentUser, setCurrentUser] = useState(null);
   const [guestId] = useState(() => {
@@ -1798,7 +1895,26 @@ export default function App() {
     return id;
   });
 
-  const logout = () => setCurrentUser(null);
+  useEffect(() => {
+    const unsub = onAuthStateChanged(auth, async (firebaseUser) => {
+      if (!firebaseUser) {
+        setCurrentUser(null);
+        return;
+      }
+
+      const snap = await getDoc(doc(firestore, "users", firebaseUser.uid));
+      if (snap.exists()) {
+        setCurrentUser({ id: firebaseUser.uid, ...snap.data() });
+      }
+    });
+
+    return () => unsub();
+  }, []);
+
+  const logout = async () => {
+    await signOut(auth);
+    setCurrentUser(null);
+  };
 
   //  QR code from URL 
   const params = new URLSearchParams(window.location.search);
@@ -1806,9 +1922,17 @@ export default function App() {
 
   //  Fix 3: guest gets a unique id per session, not "guest" 
   if (!currentUser) {
+    if (qrCode && dataLoading) {
+      return (
+        <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "#f8fafc", color: "#475569", fontFamily: "Arial, sans-serif" }}>
+          Loading quiz...
+        </div>
+      );
+    }
+
     if (qrCode) {
       const quiz = db.quizzes.find(
-        q => q.joinCode.toUpperCase() === qrCode.toUpperCase()
+        q => q.joinCode?.toUpperCase() === qrCode.toUpperCase()
       );
       if (quiz) {
         const guestUser = {
@@ -1840,6 +1964,8 @@ export default function App() {
   }
   return   <StudentApp db={db} setDb={setDb} user={currentUser} onLogout={logout} />;
 }
+
+
 
 
 
