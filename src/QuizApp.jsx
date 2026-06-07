@@ -1636,6 +1636,22 @@ const LoginPage = ({ db, onLogin }) => {
   const [err, setErr]           = useState("");
 
   
+
+  //  Fix 1: handleLogin defined inside the component 
+ 
+
+  //  Fix 2: demo buttons auto-fill from db, not hardcoded  no email shown 
+  const handleDemoClick = (label) => {
+   
+    const user = db.users.find(u => u.name === nameMap[label] && u.role === roleMap[label]);
+    if (user) {
+      setEmail(user.email);
+      setPassword(user.password);
+      setErr("");
+    }
+  };
+
+  
 const handleLogin = async () => {
 
   try {
