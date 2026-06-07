@@ -13,57 +13,13 @@ import {
   getDoc,
   addDoc,
   doc,
-  setDoc,
-  updateDoc,
-  deleteDoc
+  setDoc
 } from "firebase/firestore";
 
 const genId = () => Math.random().toString(36).substr(2, 9);
 const genCode = (prefix) => prefix + Math.random().toString(36).substr(2, 5).toUpperCase();
 
-// ─── Seed Data ───────────────────────────────────────────────────────────────
-const SEED = {
-  users: [
-    { id: "u1", name: "Super Admin",       email: "admin@quizly.com",  password: "admin123", role: "admin"   },
-    { id: "u2", name: "Dr. Ananya Sharma", email: "ananya@quizly.com", password: "pass123",  role: "teacher" },
-    { id: "u3", name: "Prof. Rahul Mehta", email: "rahul@quizly.com",  password: "pass123",  role: "teacher" },
-    { id: "u4", name: "Priya Patel",       email: "priya@quizly.com",  password: "pass123",  role: "student" },
-    { id: "u5", name: "Arjun Nair",        email: "arjun@quizly.com",  password: "pass123",  role: "student" },
-  ],
-  courses: [
-    { id: "c1", joinCode: "CRS-MATH1", name: "Mathematics 101",      description: "Algebra, calculus, and number theory fundamentals.", teacherId: "u2" },
-    { id: "c2", joinCode: "CRS-PHYS2", name: "Physics Fundamentals", description: "Newton's laws, thermodynamics, and wave mechanics.",  teacherId: "u3" },
-    { id: "c3", joinCode: "CRS-DATA3", name: "Data Structures",      description: "Arrays, linked lists, trees, and graph algorithms.", teacherId: "u2" },
-  ],
-  quizzes: [
-    {
-      id: "q1", joinCode: "QZ-ALG01", courseId: "c1", title: "Algebra Basics", description: "Test your understanding of basic algebraic concepts.",
-      questions: [
-        { id: "qq1", text: "What is 2 + 2?",       options: ["3","4","5","6"],                                         correctAnswer: 1 },
-        { id: "qq2", text: "Solve: x + 5 = 10",    options: ["x = 3","x = 4","x = 5","x = 6"],                        correctAnswer: 2 },
-        { id: "qq3", text: "What is 3²?",           options: ["6","8","9","12"],                                        correctAnswer: 2 },
-        { id: "qq4", text: "Factor: x² - 4",        options: ["(x+2)(x-2)","(x+1)(x-4)","(x-2)²","(x+4)(x-1)"],      correctAnswer: 0 },
-      ]
-    },
-    {
-      id: "q2", joinCode: "QZ-NEW02", courseId: "c2", title: "Newton's Laws", description: "A quiz on the three laws of motion.",
-      questions: [
-        { id: "qq5", text: "What is the SI unit of force?",                      options: ["Watt","Newton","Joule","Pascal"],       correctAnswer: 1 },
-        { id: "qq6", text: "F = ma represents Newton's ___ Law.",                options: ["First","Second","Third","Fourth"],      correctAnswer: 1 },
-        { id: "qq7", text: "An object at rest tends to stay at rest. Which law?",options: ["2nd","3rd","1st","None"],               correctAnswer: 2 },
-      ]
-    },
-    {
-      id: "q3", joinCode: "QZ-DSA03", courseId: "c3", title: "Arrays & Searching", description: "Test on array operations and search algorithms.",
-      questions: [
-        { id: "qq8", text: "Time complexity of binary search?",  options: ["O(n)","O(log n)","O(n²)","O(1)"], correctAnswer: 1 },
-        { id: "qq9", text: "Which data structure uses LIFO?",    options: ["Queue","Stack","Array","Tree"],    correctAnswer: 1 },
-      ]
-    },
-  ],
-  attempts: [],
-  enrollments: [],
-};
+
 
 // ─── Shared UI ────────────────────────────────────────────────────────────────
 const roleColor = { admin: "#dc2626", teacher: "#2563eb", student: "#059669" };
