@@ -1642,7 +1642,20 @@ const LoginPage = ({ db, onLogin }) => {
 
   //  Fix 2: demo buttons auto-fill from db, not hardcoded  no email shown 
   const handleDemoClick = (label) => {
-   
+    const roleMap = {
+      "Admin":                 "admin",
+      "Teacher (Dr. Sharma)":  "teacher",
+      "Teacher (Prof. Mehta)": "teacher",
+      "Student (Priya)":       "student",
+      "Student (Arjun)":       "student",
+    };
+    const nameMap = {
+      "Admin":                 "Super Admin",
+      "Teacher (Dr. Sharma)":  "Dr. Ananya Sharma",
+      "Teacher (Prof. Mehta)": "Prof. Rahul Mehta",
+      "Student (Priya)":       "Priya Patel",
+      "Student (Arjun)":       "Arjun Nair",
+    };
     const user = db.users.find(u => u.name === nameMap[label] && u.role === roleMap[label]);
     if (user) {
       setEmail(user.email);
