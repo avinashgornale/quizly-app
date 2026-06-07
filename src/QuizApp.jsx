@@ -8,9 +8,14 @@ import {
 } from "firebase/auth";
 
 import {
+  collection,
+  getDocs,
+  getDoc,
+  addDoc,
   doc,
   setDoc,
-  getDoc
+  updateDoc,
+  deleteDoc
 } from "firebase/firestore";
 
 const genId = () => Math.random().toString(36).substr(2, 9);
@@ -534,6 +539,33 @@ const AdminApp = ({ db, setDb, user, onLogout }) => {
 
 // ─── TEACHER MODULE ───────────────────────────────────────────────────────────
 const TeacherApp = ({ db, setDb, user, onLogout }) => {
+  const saveCourse = async () => {
+  try {
+
+    await addDoc(
+      collection(firestore, "courses"),
+      {
+        title: form.title,
+        code: form.code,
+        teacherId: user.id,
+        createdAt: new Date().toISOString()
+      }
+    );
+
+    alert("Course created successfully");
+
+    setModal(null);
+
+    window.location.reload();
+
+  } catch (err) {
+
+    console.error(err);
+
+    alert(err.message);
+
+  }
+};
   const [tab, setTab]           = useState("overview");
   const [modal, setModal]       = useState(null);
   const [form, setForm]         = useState({});
@@ -956,32 +988,12 @@ const TeacherApp = ({ db, setDb, user, onLogout }) => {
     />
 
     <div style={{ marginTop: 16 }}>
-      <Btn
-        onClick={async () => {
-
-          const id = Date.now().toString();
-
-          await setDoc(
-            doc(firestore, "courses", id),
-            {
-              id,
-              title: form.title,
-              code: form.code,
-              teacherId: user.id
-            }
-          );
-
-          setModal(null);
-
-          window.location.reload();
-        }}
-      >
+      <Btn onClick={saveCourse}>
         Create Course
       </Btn>
     </div>
   </Modal>
 )}
-
       {modal === "quiz" && (
         <Modal title={form.id ? "Edit Quiz" : "New Quiz"} onClose={() => setModal(null)}>
           <Input    label="Quiz Title"   value={form.title       || ""} onChange={e => setForm({ ...form, title:       e.target.value })} />
@@ -1618,22 +1630,74 @@ console.log("UID:", cred.user.uid);
 // ─── ROOT ─────────────────────────────────────────────────────────────────────
 export default function App() {
 
-  const [db, setDb] = useState(() => {
-    try {
-      const saved = localStorage.getItem("quizly-db");
-      if (!saved) return SEED;
-      const parsed = JSON.parse(saved);
-      // Ensure all SEED users still exist (guards against stale saves missing new fields)
-      const hasAllUsers = SEED.users.every(su => parsed.users?.find(u => u.id === su.id));
-      return hasAllUsers ? parsed : SEED;
-    } catch {
-      return SEED;
-    }
-  });
+  const [db, setDb] = useState({
+  users: [],
+  courses: [],
+  quizzes: [],
+  attempts: [],
+  enrollments: []
+});
 
   useEffect(() => {
-    localStorage.setItem("quizly-db", JSON.stringify(db));
-  }, [db]);
+
+  const loadData = async () => {
+
+    const usersSnap =
+      await getDocs(
+        collection(firestore, "users")
+      );
+
+    const coursesSnap =
+      await getDocs(
+        collection(firestore, "courses")
+      );
+
+    const quizzesSnap =
+      await getDocs(
+        collection(firestore, "quizzes")
+      );
+
+    const attemptsSnap =
+      await getDocs(
+        collection(firestore, "attempts")
+      );
+
+    const enrollmentsSnap =
+      await getDocs(
+        collection(firestore, "enrollments")
+      );
+
+    setDb({
+      users: usersSnap.docs.map(d => ({
+        id: d.id,
+        ...d.data()
+      })),
+
+      courses: coursesSnap.docs.map(d => ({
+        id: d.id,
+        ...d.data()
+      })),
+
+      quizzes: quizzesSnap.docs.map(d => ({
+        id: d.id,
+        ...d.data()
+      })),
+
+      attempts: attemptsSnap.docs.map(d => ({
+        id: d.id,
+        ...d.data()
+      })),
+
+      enrollments: enrollmentsSnap.docs.map(d => ({
+        id: d.id,
+        ...d.data()
+      }))
+    });
+  };
+
+  loadData();
+
+}, []);
 
   const [currentUser, setCurrentUser] = useState(null);
 
