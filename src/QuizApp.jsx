@@ -13,7 +13,9 @@ import {
   getDoc,
   addDoc,
   doc,
-  setDoc
+  setDoc,
+  deleteDoc,
+  updateDoc
 } from "firebase/firestore";
 
 const genId = () => Math.random().toString(36).substr(2, 9);
@@ -21,7 +23,7 @@ const genCode = (prefix) => prefix + Math.random().toString(36).substr(2, 5).toU
 
 
 
-// ─── Shared UI ────────────────────────────────────────────────────────────────
+// â”€â”€â”€ Shared UI â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const roleColor = { admin: "#dc2626", teacher: "#2563eb", student: "#059669" };
 const roleBg    = { admin: "#fef2f2", teacher: "#eff6ff", student: "#ecfdf5" };
 
@@ -44,7 +46,7 @@ const Modal = ({ title, onClose, children, wide }) => (
     <div style={{ background: "#fff", borderRadius: 16, width: "100%", maxWidth: wide ? 680 : 480, maxHeight: "92vh", overflow: "auto", boxShadow: "0 25px 60px rgba(0,0,0,.3)" }}>
       <div style={{ padding: "18px 24px", borderBottom: "1.5px solid #e2e8f0", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <span style={{ fontWeight: 700, fontSize: 17, color: "#1e293b" }}>{title}</span>
-        <button onClick={onClose} style={{ background: "none", border: "none", fontSize: 24, cursor: "pointer", color: "#94a3b8" }}>×</button>
+        <button onClick={onClose} style={{ background: "none", border: "none", fontSize: 24, cursor: "pointer", color: "#94a3b8" }}>Ã—</button>
       </div>
       <div style={{ padding: 24 }}>{children}</div>
     </div>
@@ -82,7 +84,7 @@ const Stat = ({ label, value, icon, color = "#1e293b" }) => (
   </Card>
 );
 
-// ─── Credentials Panel (admin only, post-login) ───────────────────────────────
+// â”€â”€â”€ Credentials Panel (admin only, post-login) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const maskEmail = (email) => {
   const [local, domain] = email.split("@");
   return local.slice(0, 2) + "*".repeat(Math.max(3, local.length - 2)) + "@" + domain;
@@ -114,19 +116,19 @@ const CredentialsPanel = ({ db }) => {
     <>
       {/* Warning banner */}
       <div style={{ background: "#fef3c7", border: "1.5px solid #fbbf24", borderRadius: 10, padding: "10px 16px", marginBottom: 24, display: "flex", alignItems: "center", gap: 10 }}>
-        <span style={{ fontSize: 18 }}>🔒</span>
+        <span style={{ fontSize: 18 }}>ðŸ”’</span>
         <span style={{ fontSize: 13, color: "#92400e", fontWeight: 500 }}>
-          This section is visible to admins only. Login credentials are sensitive — handle with care.
+          This section is visible to admins only. Login credentials are sensitive â€” handle with care.
         </span>
       </div>
 
       {/* Role tabs */}
       <div style={{ display: "flex", gap: 10, marginBottom: 20, alignItems: "center" }}>
-        <button style={tabStyle("teacher")} onClick={() => { setActiveRole("teacher"); setRevealed({}); }}>🧑‍🏫 Teachers</button>
-        <button style={tabStyle("student")} onClick={() => { setActiveRole("student"); setRevealed({}); }}>🎓 Students</button>
+        <button style={tabStyle("teacher")} onClick={() => { setActiveRole("teacher"); setRevealed({}); }}>ðŸ§‘â€ðŸ« Teachers</button>
+        <button style={tabStyle("student")} onClick={() => { setActiveRole("student"); setRevealed({}); }}>ðŸŽ“ Students</button>
         <div style={{ marginLeft: "auto", display: "flex", gap: 8 }}>
-          <Btn size="sm" variant="ghost" onClick={revealAll}>👁 Show All</Btn>
-          <Btn size="sm" variant="ghost" onClick={hideAll}>🙈 Hide All</Btn>
+          <Btn size="sm" variant="ghost" onClick={revealAll}>ðŸ‘ Show All</Btn>
+          <Btn size="sm" variant="ghost" onClick={hideAll}>ðŸ™ˆ Hide All</Btn>
         </div>
       </div>
 
@@ -150,7 +152,7 @@ const CredentialsPanel = ({ db }) => {
                     {show ? u.email : maskEmail(u.email)}
                   </td>
                   <td style={{ padding: "12px 16px", fontFamily: "monospace", fontSize: 13, color: show ? "#0f172a" : "#94a3b8" }}>
-                    {show ? u.password : "••••••••"}
+                    {show ? u.password : "â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢"}
                   </td>
                   <td style={{ padding: "12px 16px" }}><Badge role={u.role} /></td>
                   <td style={{ padding: "12px 16px" }}>
@@ -159,7 +161,7 @@ const CredentialsPanel = ({ db }) => {
                       title={show ? "Hide credentials" : "Reveal credentials"}
                       style={{ background: show ? "#dcfce7" : "#f1f5f9", border: "none", borderRadius: 6, padding: "5px 12px", cursor: "pointer", fontSize: 13, fontWeight: 600, color: show ? "#059669" : "#475569", transition: "all .15s" }}
                     >
-                      {show ? "👁 Hide" : "🔍 Show"}
+                      {show ? "ðŸ‘ Hide" : "ðŸ” Show"}
                     </button>
                   </td>
                 </tr>
@@ -172,7 +174,7 @@ const CredentialsPanel = ({ db }) => {
   );
 };
 
-// ─── QR Code Modal ────────────────────────────────────────────────────────────
+// â”€â”€â”€ QR Code Modal â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const QRModal = ({ title, code, description, onClose }) => {
   const [copied, setCopied] = useState(false);
   const canvasRef = useRef(null);
@@ -209,7 +211,7 @@ const QRModal = ({ title, code, description, onClose }) => {
   };
 
   return (
-    <Modal title={`QR Code — ${title}`} onClose={onClose}>
+    <Modal title={`QR Code â€” ${title}`} onClose={onClose}>
       <div style={{ textAlign: "center" }}>
         <p style={{ color: "#64748b", fontSize: 14, margin: "0 0 20px" }}>{description}</p>
         <div style={{ display: "inline-block", padding: 20, background: "#fff", borderRadius: 16, border: "3px solid #0f172a", marginBottom: 24, boxShadow: "0 10px 30px rgba(0,0,0,.15)" }}>
@@ -221,7 +223,7 @@ const QRModal = ({ title, code, description, onClose }) => {
             <div style={{ fontSize: 26, fontWeight: 900, color: "#f8fafc", letterSpacing: 3, fontFamily: "monospace" }}>{code}</div>
           </div>
           <button onClick={copy} style={{ background: copied ? "#059669" : "#1e40af", border: "none", borderRadius: 8, color: "#fff", padding: "8px 14px", cursor: "pointer", fontFamily: "inherit", fontWeight: 600, fontSize: 13, transition: "all .2s" }}>
-            {copied ? "✓ Copied" : "Copy"}
+            {copied ? "âœ“ Copied" : "Copy"}
           </button>
         </div>
         <p style={{ fontSize: 13, color: "#94a3b8", margin: 0 }}>Students scan this QR code or enter the code manually to access this content.</p>
@@ -230,11 +232,11 @@ const QRModal = ({ title, code, description, onClose }) => {
   );
 };
 
-// ─── Sidebar ──────────────────────────────────────────────────────────────────
+// â”€â”€â”€ Sidebar â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const Sidebar = ({ user, activeTab, setTab, tabs, onLogout }) => (
   <div style={{ width: 240, minHeight: "100vh", background: "#0f172a", display: "flex", flexDirection: "column", padding: "0 0 24px", flexShrink: 0 }}>
     <div style={{ padding: "28px 20px 20px", borderBottom: "1px solid #1e293b" }}>
-      <div style={{ fontSize: 22, fontWeight: 800, color: "#fff", letterSpacing: -0.5 }}>📋 Quizly</div>
+      <div style={{ fontSize: 22, fontWeight: 800, color: "#fff", letterSpacing: -0.5 }}>ðŸ“‹ Quizly</div>
       <div style={{ marginTop: 16, display: "flex", alignItems: "center", gap: 10 }}>
         <div style={{ width: 38, height: 38, borderRadius: "50%", background: roleColor[user.role], display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontWeight: 800, fontSize: 15, flexShrink: 0 }}>{user.name[0]}</div>
         <div>
@@ -251,12 +253,12 @@ const Sidebar = ({ user, activeTab, setTab, tabs, onLogout }) => (
       ))}
     </nav>
     <div style={{ padding: "0 12px" }}>
-      <button onClick={onLogout} style={{ width: "100%", background: "transparent", color: "#94a3b8", border: "1px solid #334155", padding: "9px 14px", borderRadius: 8, cursor: "pointer", fontFamily: "inherit", fontWeight: 600, fontSize: 14, textAlign: "left" }}>⬅ Logout</button>
+      <button onClick={onLogout} style={{ width: "100%", background: "transparent", color: "#94a3b8", border: "1px solid #334155", padding: "9px 14px", borderRadius: 8, cursor: "pointer", fontFamily: "inherit", fontWeight: 600, fontSize: 14, textAlign: "left" }}>â¬… Logout</button>
     </div>
   </div>
 );
 
-// ─── ADMIN MODULE ─────────────────────────────────────────────────────────────
+// â”€â”€â”€ ADMIN MODULE â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const AdminApp = ({ db, setDb, user, onLogout }) => {
   const [tab, setTab]     = useState("overview");
   const [modal, setModal] = useState(null);
@@ -266,14 +268,14 @@ const AdminApp = ({ db, setDb, user, onLogout }) => {
 
   const teachers = db.users.filter(u => u.role === "teacher");
 
-  // ── "Credentials" tab only appears for admin ──────────────────────────────
+  // â”€â”€ "Credentials" tab only appears for admin â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const tabs = [
-    { id: "overview",     label: "Overview",     icon: "🏠" },
-    { id: "users",        label: "Users",         icon: "👥" },
-    { id: "courses",      label: "Courses",       icon: "📚" },
-    { id: "quizzes",      label: "All Quizzes",   icon: "📝" },
+    { id: "overview",     label: "Overview",     icon: "ðŸ " },
+    { id: "users",        label: "Users",         icon: "ðŸ‘¥" },
+    { id: "courses",      label: "Courses",       icon: "ðŸ“š" },
+    { id: "quizzes",      label: "All Quizzes",   icon: "ðŸ“" },
     ...(user.role === "admin"
-      ? [{ id: "credentials", label: "Credentials", icon: "🔑" }]
+      ? [{ id: "credentials", label: "Credentials", icon: "ðŸ”‘" }]
       : []),
   ];
 
@@ -314,15 +316,78 @@ const AdminApp = ({ db, setDb, user, onLogout }) => {
 
 };
 
-  const deleteUser = (id) => { if (!window.confirm("Delete this user?")) return; setDb(d => ({ ...d, users: d.users.filter(u => u.id !== id) })); };
+  const deleteUser = async (id) => {
+    if (!window.confirm("Delete this user profile?")) return;
 
-  const saveCourse = () => {
-    if (!form.name || !form.teacherId) return setErr("Name and teacher required.");
-    setDb(d => ({ ...d, courses: form.id ? d.courses.map(c => c.id === form.id ? { ...c, ...form } : c) : [...d.courses, { ...form, id: genId(), joinCode: genCode("CRS-") }] }));
-    closeModal();
+    try {
+      await deleteDoc(doc(firestore, "users", id));
+      setDb(d => ({ ...d, users: d.users.filter(u => u.id !== id) }));
+    } catch (err) {
+      alert(err.message);
+    }
   };
 
-  const deleteCourse = (id) => { if (!window.confirm("Delete this course?")) return; setDb(d => ({ ...d, courses: d.courses.filter(c => c.id !== id), quizzes: d.quizzes.filter(q => q.courseId !== id) })); };
+  const saveCourse = async () => {
+    if (!form.name || !form.teacherId) return setErr("Name and teacher required.");
+
+    try {
+      const courseData = {
+        name: form.name,
+        description: form.description || "",
+        teacherId: form.teacherId,
+        joinCode: form.joinCode || genCode("CRS-"),
+        createdAt: form.createdAt || new Date().toISOString()
+      };
+
+      if (form.id) {
+        await setDoc(doc(firestore, "courses", form.id), courseData, { merge: true });
+        setDb(d => ({
+          ...d,
+          courses: d.courses.map(c => c.id === form.id ? { id: form.id, ...courseData } : c)
+        }));
+      } else {
+        const ref = await addDoc(collection(firestore, "courses"), courseData);
+        setDb(d => ({
+          ...d,
+          courses: [...d.courses, { id: ref.id, ...courseData }]
+        }));
+      }
+
+      closeModal();
+    } catch (err) {
+      alert(err.message);
+    }
+  };
+
+  const deleteCourse = async (id) => {
+    if (!window.confirm("Delete this course?")) return;
+
+    try {
+      const relatedQuizzes = db.quizzes.filter(q => q.courseId === id);
+      const relatedQuizIds = relatedQuizzes.map(q => q.id);
+      const relatedEnrollments = db.enrollments.filter(e => e.courseId === id);
+      const relatedAttempts = db.attempts.filter(a => relatedQuizIds.includes(a.quizId));
+
+      await Promise.all([
+        deleteDoc(doc(firestore, "courses", id)),
+        ...relatedQuizzes.map(q => deleteDoc(doc(firestore, "quizzes", q.id))),
+        ...relatedEnrollments.map(e => deleteDoc(doc(firestore, "enrollments", e.id))),
+        ...relatedAttempts.map(a => deleteDoc(doc(firestore, "attempts", a.id)))
+      ]);
+
+      setDb(d => ({
+        ...d,
+        courses: d.courses.filter(c => c.id !== id),
+        quizzes: d.quizzes.filter(q => q.courseId !== id),
+        enrollments: d.enrollments.filter(e => e.courseId !== id),
+        attempts: d.attempts.filter(a => !relatedQuizIds.includes(a.quizId))
+      }));
+
+      alert("Course deleted successfully");
+    } catch (err) {
+      alert(err.message);
+    }
+  };
 
   return (
     <div style={{ display: "flex" }}>
@@ -333,16 +398,16 @@ const AdminApp = ({ db, setDb, user, onLogout }) => {
           <>
             <h2 style={{ margin: "0 0 24px", fontWeight: 800, fontSize: 26, color: "#0f172a" }}>Admin Overview</h2>
             <div style={{ display: "flex", gap: 16, flexWrap: "wrap", marginBottom: 32 }}>
-              <Stat icon="🧑‍🏫" label="Teachers"  value={teachers.length}                                      color="#2563eb" />
-              <Stat icon="🎓"   label="Students"  value={db.users.filter(u => u.role === "student").length}    color="#059669" />
-              <Stat icon="📚"   label="Courses"   value={db.courses.length}                                    color="#7c3aed" />
-              <Stat icon="📝"   label="Quizzes"   value={db.quizzes.length}                                    color="#d97706" />
-              <Stat icon="✅"   label="Attempts"  value={db.attempts.length}                                   color="#dc2626" />
+              <Stat icon="ðŸ§‘â€ðŸ«" label="Teachers"  value={teachers.length}                                      color="#2563eb" />
+              <Stat icon="ðŸŽ“"   label="Students"  value={db.users.filter(u => u.role === "student").length}    color="#059669" />
+              <Stat icon="ðŸ“š"   label="Courses"   value={db.courses.length}                                    color="#7c3aed" />
+              <Stat icon="ðŸ“"   label="Quizzes"   value={db.quizzes.length}                                    color="#d97706" />
+              <Stat icon="âœ…"   label="Attempts"  value={db.attempts.length}                                   color="#dc2626" />
             </div>
             <Card>
               <h3 style={{ margin: "0 0 12px", fontSize: 15, fontWeight: 700 }}>QR-Based Access</h3>
-              <p style={{ color: "#64748b", fontSize: 14, margin: "0 0 16px" }}>Each course has a unique QR code. Share it with students to grant access. Students <strong>cannot</strong> browse courses freely — they must scan or enter the code.</p>
-              <Btn onClick={() => setTab("courses")}>View Course QR Codes →</Btn>
+              <p style={{ color: "#64748b", fontSize: 14, margin: "0 0 16px" }}>Each course has a unique QR code. Share it with students to grant access. Students <strong>cannot</strong> browse courses freely â€” they must scan or enter the code.</p>
+              <Btn onClick={() => setTab("courses")}>View Course QR Codes â†’</Btn>
             </Card>
           </>
         )}
@@ -356,14 +421,14 @@ const AdminApp = ({ db, setDb, user, onLogout }) => {
             {["teacher", "student"].map(role => (
               <div key={role} style={{ marginBottom: 32 }}>
                 <h3 style={{ margin: "0 0 12px", fontWeight: 700, color: roleColor[role], textTransform: "capitalize" }}>
-                  {role === "teacher" ? "🧑‍🏫" : "🎓"} {role}s
+                  {role === "teacher" ? "ðŸ§‘â€ðŸ«" : "ðŸŽ“"} {role}s
                 </h3>
                 <div style={{ display: "grid", gap: 12 }}>
                   {db.users.filter(u => u.role === role).map(u => (
                     <Card key={u.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "14px 20px" }}>
                       <div>
                         <div style={{ fontWeight: 700, color: "#1e293b" }}>{u.name}</div>
-                        {/* Email is masked here — full details only in Credentials tab */}
+                        {/* Email is masked here â€” full details only in Credentials tab */}
                         <div style={{ fontSize: 13, color: "#64748b" }}>{maskEmail(u.email)}</div>
                       </div>
                       <div style={{ display: "flex", gap: 8 }}>
@@ -396,14 +461,14 @@ const AdminApp = ({ db, setDb, user, onLogout }) => {
                         <div style={{ fontWeight: 700, fontSize: 16, color: "#1e293b" }}>{c.name}</div>
                         <div style={{ fontSize: 13, color: "#64748b", marginTop: 4 }}>{c.description}</div>
                         <div style={{ fontSize: 12, color: "#94a3b8", marginTop: 8, display: "flex", alignItems: "center", gap: 12 }}>
-                          <span>👨‍🏫 {teacher?.name || "Unassigned"}</span>
-                          <span>📝 {qCount} quiz{qCount !== 1 ? "zes" : ""}</span>
-                          <span>🎓 {enrolled} enrolled</span>
+                          <span>ðŸ‘¨â€ðŸ« {teacher?.name || "Unassigned"}</span>
+                          <span>ðŸ“ {qCount} quiz{qCount !== 1 ? "zes" : ""}</span>
+                          <span>ðŸŽ“ {enrolled} enrolled</span>
                           <span style={{ background: "#f1f5f9", border: "1px solid #e2e8f0", borderRadius: 6, padding: "2px 8px", fontFamily: "monospace", fontWeight: 700, color: "#475569" }}>{c.joinCode}</span>
                         </div>
                       </div>
                       <div style={{ display: "flex", gap: 8 }}>
-                        <Btn size="sm" variant="purple" onClick={() => setQrTarget({ title: c.name, code: c.joinCode, description: `Share this QR to give students access to "${c.name}"` })}>📱 QR Code</Btn>
+                        <Btn size="sm" variant="purple" onClick={() => setQrTarget({ title: c.name, code: c.joinCode, description: `Share this QR to give students access to "${c.name}"` })}>ðŸ“± QR Code</Btn>
                         <Btn size="sm" variant="ghost"  onClick={() => openModal("course", { ...c })}>Edit</Btn>
                         <Btn size="sm" variant="danger" onClick={() => deleteCourse(c.id)}>Delete</Btn>
                       </div>
@@ -432,13 +497,13 @@ const AdminApp = ({ db, setDb, user, onLogout }) => {
                           <div style={{ fontWeight: 700, fontSize: 16, color: "#1e293b" }}>{q.title}</div>
                           <div style={{ fontSize: 13, color: "#64748b", marginTop: 2 }}>{q.description}</div>
                           <div style={{ fontSize: 12, color: "#94a3b8", marginTop: 8, display: "flex", gap: 12, alignItems: "center" }}>
-                            <span>📚 {course?.name}</span>
-                            <span>❓ {q.questions.length} Qs</span>
-                            <span>🎯 {attempts.length} attempts{avgScore !== null ? ` · Avg ${avgScore}%` : ""}</span>
+                            <span>ðŸ“š {course?.name}</span>
+                            <span>â“ {q.questions.length} Qs</span>
+                            <span>ðŸŽ¯ {attempts.length} attempts{avgScore !== null ? ` Â· Avg ${avgScore}%` : ""}</span>
                             <span style={{ background: "#f1f5f9", border: "1px solid #e2e8f0", borderRadius: 6, padding: "2px 8px", fontFamily: "monospace", fontWeight: 700, color: "#475569" }}>{q.joinCode}</span>
                           </div>
                         </div>
-                        <Btn size="sm" variant="purple" onClick={() => setQrTarget({ title: q.title, code: q.joinCode, description: `Share this QR so students can directly access the quiz "${q.title}"` })}>📱 QR Code</Btn>
+                        <Btn size="sm" variant="purple" onClick={() => setQrTarget({ title: q.title, code: q.joinCode, description: `Share this QR so students can directly access the quiz "${q.title}"` })}>ðŸ“± QR Code</Btn>
                       </div>
                     </Card>
                   );
@@ -448,10 +513,10 @@ const AdminApp = ({ db, setDb, user, onLogout }) => {
           </>
         )}
 
-        {/* ── Credentials tab — admin only, post-login ── */}
+        {/* â”€â”€ Credentials tab â€” admin only, post-login â”€â”€ */}
         {tab === "credentials" && user.role === "admin" && (
           <>
-            <h2 style={{ margin: "0 0 24px", fontWeight: 800, fontSize: 26, color: "#0f172a" }}>🔑 Login Credentials</h2>
+            <h2 style={{ margin: "0 0 24px", fontWeight: 800, fontSize: 26, color: "#0f172a" }}>ðŸ”‘ Login Credentials</h2>
             <CredentialsPanel db={db} />
           </>
         )}
@@ -479,7 +544,7 @@ const AdminApp = ({ db, setDb, user, onLogout }) => {
           <Input    label="Course Name"   value={form.name        || ""} onChange={e => setForm({ ...form, name:        e.target.value })} />
           <Textarea label="Description"   value={form.description || ""} onChange={e => setForm({ ...form, description: e.target.value })} />
           <Select   label="Assign Teacher" value={form.teacherId  || ""} onChange={e => setForm({ ...form, teacherId:   e.target.value })}
-            options={[{ value: "", label: "— Select Teacher —" }, ...teachers.map(t => ({ value: t.id, label: t.name }))]} />
+            options={[{ value: "", label: "â€” Select Teacher â€”" }, ...teachers.map(t => ({ value: t.id, label: t.name }))]} />
           {err && <p style={{ color: "#dc2626", fontSize: 13 }}>{err}</p>}
           <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
             <Btn variant="ghost" onClick={closeModal}>Cancel</Btn>
@@ -493,35 +558,40 @@ const AdminApp = ({ db, setDb, user, onLogout }) => {
   );
 };
 
-// ─── TEACHER MODULE ───────────────────────────────────────────────────────────
+// â”€â”€â”€ TEACHER MODULE â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const TeacherApp = ({ db, setDb, user, onLogout }) => {
   const saveCourse = async () => {
-  try {
+    if (!form.name) return setErr("Course name is required.");
 
-    await addDoc(
-      collection(firestore, "courses"),
-      {
-        title: form.title,
-        code: form.code,
+    try {
+      const courseData = {
+        name: form.name,
+        description: form.description || "",
         teacherId: user.id,
-        createdAt: new Date().toISOString()
+        joinCode: form.joinCode || genCode("CRS-"),
+        createdAt: form.createdAt || new Date().toISOString()
+      };
+
+      if (form.id) {
+        await setDoc(doc(firestore, "courses", form.id), courseData, { merge: true });
+        setDb(d => ({
+          ...d,
+          courses: d.courses.map(c => c.id === form.id ? { id: form.id, ...courseData } : c)
+        }));
+      } else {
+        const ref = await addDoc(collection(firestore, "courses"), courseData);
+        setDb(d => ({
+          ...d,
+          courses: [...d.courses, { id: ref.id, ...courseData }]
+        }));
       }
-    );
 
-    alert("Course created successfully");
-
-    setModal(null);
-
-    window.location.reload();
-
-  } catch (err) {
-
-    console.error(err);
-
-    alert(err.message);
-
-  }
-};
+      setModal(null);
+      setErr("");
+    } catch (err) {
+      alert(err.message);
+    }
+  };
   const [tab, setTab]           = useState("overview");
   const [modal, setModal]       = useState(null);
   const [form, setForm]         = useState({});
@@ -538,11 +608,11 @@ const TeacherApp = ({ db, setDb, user, onLogout }) => {
   const teacherAttempts = db.attempts.filter(a => myQuizIds.includes(a.quizId));
 
   const tabs = [
-    { id: "overview", label: "Overview",   icon: "🏠" },
-    { id: "courses",  label: "My Courses", icon: "📚" },
-    { id: "quizzes",  label: "My Quizzes", icon: "📝" },
-    { id: "results",  label: "Results",    icon: "📊" },
-    ...(editingQuiz ? [{ id: "editor", label: "Quiz Editor", icon: "✏️" }] : []),
+    { id: "overview", label: "Overview",   icon: "ðŸ " },
+    { id: "courses",  label: "My Courses", icon: "ðŸ“š" },
+    { id: "quizzes",  label: "My Quizzes", icon: "ðŸ“" },
+    { id: "results",  label: "Results",    icon: "ðŸ“Š" },
+    ...(editingQuiz ? [{ id: "editor", label: "Quiz Editor", icon: "âœï¸" }] : []),
   ];
 
   const openQuizModal = (data = {}) => {
@@ -551,21 +621,61 @@ const TeacherApp = ({ db, setDb, user, onLogout }) => {
     setErr("");
   };
 
-  const saveQuiz = () => {
+  const saveQuiz = async () => {
     if (!form.title || !form.courseId) return setErr("Title and course required.");
-    setDb(d => ({
-      ...d,
-      quizzes: form.id
-        ? d.quizzes.map(q => q.id === form.id ? { ...q, ...form } : q)
-        : [...d.quizzes, { ...form, id: genId(), joinCode: genCode("QZ-"), questions: [] }]
-    }));
-    setModal(null);
+
+    try {
+      const quizData = {
+        title: form.title,
+        description: form.description || "",
+        courseId: form.courseId,
+        teacherId: user.id,
+        joinCode: form.joinCode || genCode("QZ-"),
+        questions: form.questions || [],
+        createdAt: form.createdAt || new Date().toISOString()
+      };
+
+      if (form.id) {
+        await setDoc(doc(firestore, "quizzes", form.id), quizData, { merge: true });
+        setDb(d => ({
+          ...d,
+          quizzes: d.quizzes.map(q => q.id === form.id ? { id: form.id, ...quizData } : q)
+        }));
+      } else {
+        const ref = await addDoc(collection(firestore, "quizzes"), quizData);
+        setDb(d => ({
+          ...d,
+          quizzes: [...d.quizzes, { id: ref.id, ...quizData }]
+        }));
+      }
+
+      setModal(null);
+      setErr("");
+    } catch (err) {
+      alert(err.message);
+    }
   };
 
-  const deleteQuiz = (id) => {
+  const deleteQuiz = async (id) => {
     if (!window.confirm("Delete this quiz?")) return;
-    setDb(d => ({ ...d, quizzes: d.quizzes.filter(q => q.id !== id) }));
-    if (editingQuiz?.id === id) { setEditingQuiz(null); setTab("quizzes"); }
+
+    try {
+      const relatedAttempts = db.attempts.filter(a => a.quizId === id);
+
+      await Promise.all([
+        deleteDoc(doc(firestore, "quizzes", id)),
+        ...relatedAttempts.map(a => deleteDoc(doc(firestore, "attempts", a.id)))
+      ]);
+
+      setDb(d => ({
+        ...d,
+        quizzes: d.quizzes.filter(q => q.id !== id),
+        attempts: d.attempts.filter(a => a.quizId !== id)
+      }));
+      if (editingQuiz?.id === id) { setEditingQuiz(null); setTab("quizzes"); }
+    } catch (err) {
+      alert(err.message);
+    }
   };
 
   const openEditor = (quiz) => {
@@ -575,23 +685,50 @@ const TeacherApp = ({ db, setDb, user, onLogout }) => {
     setErr("");
   };
 
-  const addQuestion = () => {
+  const addQuestion = async () => {
     if (!questionForm.text || questionForm.options.some(o => !o)) return setErr("Fill all question fields.");
+
     const newQ = { id: genId(), ...questionForm };
-    setDb(d => ({ ...d, quizzes: d.quizzes.map(q => q.id === editingQuiz.id ? { ...q, questions: [...q.questions, newQ] } : q) }));
-    setEditingQuiz(prev => ({ ...prev, questions: [...prev.questions, newQ] }));
-    setQuestionForm({ text: "", options: ["", "", "", ""], correctAnswer: 0 });
-    setErr("");
+    const nextQuestions = [...(currentQuiz?.questions || []), newQ];
+
+    try {
+      await updateDoc(doc(firestore, "quizzes", editingQuiz.id), {
+        questions: nextQuestions
+      });
+
+      setDb(d => ({
+        ...d,
+        quizzes: d.quizzes.map(q => q.id === editingQuiz.id ? { ...q, questions: nextQuestions } : q)
+      }));
+      setEditingQuiz(prev => ({ ...prev, questions: nextQuestions }));
+      setQuestionForm({ text: "", options: ["", "", "", ""], correctAnswer: 0 });
+      setErr("");
+    } catch (err) {
+      alert(err.message);
+    }
   };
 
-  const deleteQuestion = (qid) => {
-    setDb(d => ({ ...d, quizzes: d.quizzes.map(q => q.id === editingQuiz.id ? { ...q, questions: q.questions.filter(qq => qq.id !== qid) } : q) }));
-    setEditingQuiz(prev => ({ ...prev, questions: prev.questions.filter(qq => qq.id !== qid) }));
+  const deleteQuestion = async (qid) => {
+    const nextQuestions = (currentQuiz?.questions || []).filter(qq => qq.id !== qid);
+
+    try {
+      await updateDoc(doc(firestore, "quizzes", editingQuiz.id), {
+        questions: nextQuestions
+      });
+
+      setDb(d => ({
+        ...d,
+        quizzes: d.quizzes.map(q => q.id === editingQuiz.id ? { ...q, questions: nextQuestions } : q)
+      }));
+      setEditingQuiz(prev => ({ ...prev, questions: nextQuestions }));
+    } catch (err) {
+      alert(err.message);
+    }
   };
 
   const currentQuiz = editingQuiz ? db.quizzes.find(q => q.id === editingQuiz.id) : null;
 
-  // ── Results helpers ──────────────────────────────────────────────────────
+  // â”€â”€ Results helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const filteredAttempts = selectedQuizId === "all"
     ? teacherAttempts
     : teacherAttempts.filter(a => a.quizId === selectedQuizId);
@@ -618,13 +755,13 @@ const TeacherApp = ({ db, setDb, user, onLogout }) => {
       const pct    = getScorePercent(a);
       const total  = quiz?.questions?.length ?? "?";
       const num    = typeof a.score === "number" ? a.score : parseInt(a.score, 10);
-      // "X out of Y" format — plain words that Excel will never misread as a date
+      // "X out of Y" format â€” plain words that Excel will never misread as a date
       const scoreCell = `${isNaN(num) ? "?" : num} out of ${total}`;
       rows.push([
-        a.studentName || "—",
-        a.studentUSN  || "—",
-        quiz?.title   || "—",
-        course?.name  || "—",
+        a.studentName || "â€”",
+        a.studentUSN  || "â€”",
+        quiz?.title   || "â€”",
+        course?.name  || "â€”",
         scoreCell,
         `${pct}%`,
       ]);
@@ -653,17 +790,17 @@ const TeacherApp = ({ db, setDb, user, onLogout }) => {
 
         {tab === "overview" && (
           <>
-            <h2 style={{ margin: "0 0 24px", fontWeight: 800, fontSize: 26, color: "#0f172a" }}>Welcome, {user.name.split(" ")[0]} 👋</h2>
+            <h2 style={{ margin: "0 0 24px", fontWeight: 800, fontSize: 26, color: "#0f172a" }}>Welcome, {user.name.split(" ")[0]} ðŸ‘‹</h2>
             <div style={{ display: "flex", gap: 16, flexWrap: "wrap", marginBottom: 32 }}>
-              <Stat icon="📚" label="My Courses"     value={myCourses.length}      color="#2563eb" />
-              <Stat icon="📝" label="My Quizzes"     value={myQuizzes.length}      color="#7c3aed" />
-              <Stat icon="✅" label="Total Attempts" value={teacherAttempts.length} color="#059669" />
+              <Stat icon="ðŸ“š" label="My Courses"     value={myCourses.length}      color="#2563eb" />
+              <Stat icon="ðŸ“" label="My Quizzes"     value={myQuizzes.length}      color="#7c3aed" />
+              <Stat icon="âœ…" label="Total Attempts" value={teacherAttempts.length} color="#059669" />
             </div>
             <Card>
               <h3 style={{ margin: "0 0 8px", fontWeight: 700 }}>Share Course Access via QR</h3>
               <p style={{ color: "#64748b", fontSize: 14, margin: "0 0 16px" }}>Go to <strong>My Courses</strong> or <strong>My Quizzes</strong> to generate QR codes. Students must scan or enter the code to join.</p>
               <div style={{ display: "flex", gap: 10 }}>
-                <Btn onClick={() => setTab("courses")} variant="outline">My Courses →</Btn>
+                <Btn onClick={() => setTab("courses")} variant="outline">My Courses â†’</Btn>
                 <Btn onClick={() => { setTab("quizzes"); openQuizModal(); }}>+ New Quiz</Btn>
               </div>
             </Card>
@@ -708,7 +845,7 @@ const TeacherApp = ({ db, setDb, user, onLogout }) => {
       ) : (
         myCourses.map(course => (
           <div key={course.id}>
-            {course.title}
+            {course.name}
           </div>
         ))
       )}
@@ -735,15 +872,15 @@ const TeacherApp = ({ db, setDb, user, onLogout }) => {
                           <div style={{ fontWeight: 700, fontSize: 16, color: "#1e293b" }}>{q.title}</div>
                           <div style={{ fontSize: 13, color: "#64748b", marginTop: 2 }}>{q.description}</div>
                           <div style={{ fontSize: 12, color: "#94a3b8", marginTop: 8, display: "flex", gap: 12, alignItems: "center" }}>
-                            <span>📚 {course?.name}</span>
-                            <span>❓ {q.questions.length} questions</span>
-                            <span>🎯 {attempts.length} attempts</span>
+                            <span>ðŸ“š {course?.name}</span>
+                            <span>â“ {q.questions.length} questions</span>
+                            <span>ðŸŽ¯ {attempts.length} attempts</span>
                             <span style={{ background: "#f1f5f9", border: "1px solid #e2e8f0", borderRadius: 6, padding: "2px 8px", fontFamily: "monospace", fontWeight: 700, color: "#475569" }}>{q.joinCode}</span>
                           </div>
                         </div>
                         <div style={{ display: "flex", gap: 8 }}>
-                          <Btn size="sm" variant="purple"  onClick={() => setQrTarget({ title: q.title, code: q.joinCode, description: `Share this QR so students can directly access "${q.title}"` })}>📱 QR</Btn>
-                          <Btn size="sm" variant="outline" onClick={() => openEditor(q)}>✏️ Questions</Btn>
+                          <Btn size="sm" variant="purple"  onClick={() => setQrTarget({ title: q.title, code: q.joinCode, description: `Share this QR so students can directly access "${q.title}"` })}>ðŸ“± QR</Btn>
+                          <Btn size="sm" variant="outline" onClick={() => openEditor(q)}>âœï¸ Questions</Btn>
                           <Btn size="sm" variant="ghost"   onClick={() => openQuizModal(q)}>Edit</Btn>
                           <Btn size="sm" variant="danger"  onClick={() => deleteQuiz(q.id)}>Delete</Btn>
                         </div>
@@ -758,13 +895,13 @@ const TeacherApp = ({ db, setDb, user, onLogout }) => {
 
         {tab === "editor" && currentQuiz && (
           <>
-            <button onClick={() => { setTab("quizzes"); setEditingQuiz(null); }} style={{ background: "none", border: "none", color: "#2563eb", cursor: "pointer", fontWeight: 600, padding: 0, fontSize: 14, marginBottom: 12 }}>← Back to Quizzes</button>
+            <button onClick={() => { setTab("quizzes"); setEditingQuiz(null); }} style={{ background: "none", border: "none", color: "#2563eb", cursor: "pointer", fontWeight: 600, padding: 0, fontSize: 14, marginBottom: 12 }}>â† Back to Quizzes</button>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 24 }}>
               <div>
-                <h2 style={{ margin: "0 0 4px", fontWeight: 800, fontSize: 24, color: "#0f172a" }}>✏️ {currentQuiz.title}</h2>
+                <h2 style={{ margin: "0 0 4px", fontWeight: 800, fontSize: 24, color: "#0f172a" }}>âœï¸ {currentQuiz.title}</h2>
                 <p style={{ margin: 0, color: "#64748b", fontSize: 14 }}>{currentQuiz.questions.length} question{currentQuiz.questions.length !== 1 ? "s" : ""} added</p>
               </div>
-              <Btn variant="purple" size="sm" onClick={() => setQrTarget({ title: currentQuiz.title, code: currentQuiz.joinCode, description: `Share this QR so students can directly access "${currentQuiz.title}"` })}>📱 QR Code</Btn>
+              <Btn variant="purple" size="sm" onClick={() => setQrTarget({ title: currentQuiz.title, code: currentQuiz.joinCode, description: `Share this QR so students can directly access "${currentQuiz.title}"` })}>ðŸ“± QR Code</Btn>
             </div>
 
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24 }}>
@@ -778,7 +915,7 @@ const TeacherApp = ({ db, setDb, user, onLogout }) => {
                       style={{ flex: 1, padding: "7px 10px", border: "1.5px solid #d1d5db", borderRadius: 8, fontSize: 13, fontFamily: "inherit" }} />
                   </div>
                 ))}
-                <p style={{ fontSize: 12, color: "#059669", margin: "0 0 12px" }}>● Select radio = correct answer</p>
+                <p style={{ fontSize: 12, color: "#059669", margin: "0 0 12px" }}>â— Select radio = correct answer</p>
                 {err && <p style={{ color: "#dc2626", fontSize: 13, margin: "0 0 10px" }}>{err}</p>}
                 <Btn onClick={addQuestion} variant="success">+ Add Question</Btn>
               </Card>
@@ -794,11 +931,11 @@ const TeacherApp = ({ db, setDb, user, onLogout }) => {
                           <div style={{ fontWeight: 700, fontSize: 14, color: "#1e293b", marginBottom: 8 }}>Q{i+1}. {q.text}</div>
                           {q.options.map((opt, oi) => (
                             <div key={oi} style={{ fontSize: 13, padding: "4px 8px", borderRadius: 6, marginBottom: 4, background: oi === q.correctAnswer ? "#d1fae5" : "#f8fafc", color: oi === q.correctAnswer ? "#065f46" : "#475569", fontWeight: oi === q.correctAnswer ? 700 : 400 }}>
-                              {oi === q.correctAnswer ? "✓ " : `${String.fromCharCode(65+oi)}. `}{opt}
+                              {oi === q.correctAnswer ? "âœ“ " : `${String.fromCharCode(65+oi)}. `}{opt}
                             </div>
                           ))}
                         </div>
-                        <Btn size="sm" variant="danger" onClick={() => deleteQuestion(q.id)} style={{ marginLeft: 8 }}>×</Btn>
+                        <Btn size="sm" variant="danger" onClick={() => deleteQuestion(q.id)} style={{ marginLeft: 8 }}>Ã—</Btn>
                       </div>
                     </Card>
                   ))
@@ -808,12 +945,12 @@ const TeacherApp = ({ db, setDb, user, onLogout }) => {
           </>
         )}
 
-        {/* ── Results Tab ─────────────────────────────────────────────────── */}
+        {/* â”€â”€ Results Tab â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
         {tab === "results" && (
           <>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24 }}>
-              <h2 style={{ margin: 0, fontWeight: 800, fontSize: 26, color: "#0f172a" }}>📊 Student Results</h2>
-              <Btn variant="success" onClick={exportResults}>⬇ Export CSV</Btn>
+              <h2 style={{ margin: 0, fontWeight: 800, fontSize: 26, color: "#0f172a" }}>ðŸ“Š Student Results</h2>
+              <Btn variant="success" onClick={exportResults}>â¬‡ Export CSV</Btn>
             </div>
 
             {/* Summary cards per quiz */}
@@ -827,7 +964,7 @@ const TeacherApp = ({ db, setDb, user, onLogout }) => {
                   >
                     <div style={{ fontSize: 13, fontWeight: 700, color: "#1e293b", marginBottom: 4, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{quiz.title}</div>
                     <div style={{ fontSize: 22, fontWeight: 800, color: "#2563eb", lineHeight: 1 }}>{attempts.length}</div>
-                    <div style={{ fontSize: 12, color: "#64748b", marginTop: 2 }}>attempt{attempts.length !== 1 ? "s" : ""}{avg !== null ? ` · Avg ${avg}%` : ""}</div>
+                    <div style={{ fontSize: 12, color: "#64748b", marginTop: 2 }}>attempt{attempts.length !== 1 ? "s" : ""}{avg !== null ? ` Â· Avg ${avg}%` : ""}</div>
                   </div>
                 ))}
                 {selectedQuizId !== "all" && (
@@ -879,10 +1016,10 @@ const TeacherApp = ({ db, setDb, user, onLogout }) => {
                       return (
                         <tr key={a.id} style={{ borderBottom: "1px solid #f1f5f9", background: i % 2 === 0 ? "#fff" : "#fafafa" }}>
                           <td style={{ padding: "11px 14px", color: "#94a3b8", fontSize: 12 }}>{i + 1}</td>
-                          <td style={{ padding: "11px 14px", fontWeight: 600, color: "#1e293b" }}>{a.studentName || "—"}</td>
-                          <td style={{ padding: "11px 14px", fontFamily: "monospace", fontSize: 13, color: "#475569" }}>{a.studentUSN || "—"}</td>
-                          <td style={{ padding: "11px 14px", color: "#1e293b" }}>{quiz?.title || "—"}</td>
-                          <td style={{ padding: "11px 14px", color: "#64748b", fontSize: 13 }}>{course?.name || "—"}</td>
+                          <td style={{ padding: "11px 14px", fontWeight: 600, color: "#1e293b" }}>{a.studentName || "â€”"}</td>
+                          <td style={{ padding: "11px 14px", fontFamily: "monospace", fontSize: 13, color: "#475569" }}>{a.studentUSN || "â€”"}</td>
+                          <td style={{ padding: "11px 14px", color: "#1e293b" }}>{quiz?.title || "â€”"}</td>
+                          <td style={{ padding: "11px 14px", color: "#64748b", fontSize: 13 }}>{course?.name || "â€”"}</td>
                           <td style={{ padding: "11px 14px", fontWeight: 700, color: "#1e293b" }}>
                             {typeof a.score === "number" ? a.score : parseInt(a.score, 10)} / {quiz?.questions?.length ?? "?"}
                           </td>
@@ -917,39 +1054,16 @@ const TeacherApp = ({ db, setDb, user, onLogout }) => {
       </main>
 
       {modal === "course" && (
-  <Modal
-    title="New Course"
-    onClose={() => setModal(null)}
-  >
-    <Input
-      label="Course Name"
-      value={form.title || ""}
-      onChange={e =>
-        setForm({
-          ...form,
-          title: e.target.value
-        })
-      }
-    />
-
-    <Input
-      label="Course Code"
-      value={form.code || ""}
-      onChange={e =>
-        setForm({
-          ...form,
-          code: e.target.value
-        })
-      }
-    />
-
-    <div style={{ marginTop: 16 }}>
-      <Btn onClick={saveCourse}>
-        Create Course
-      </Btn>
-    </div>
-  </Modal>
-)}
+        <Modal title={form.id ? "Edit Course" : "New Course"} onClose={() => setModal(null)}>
+          <Input label="Course Name" value={form.name || ""} onChange={e => setForm({ ...form, name: e.target.value })} />
+          <Textarea label="Description" value={form.description || ""} onChange={e => setForm({ ...form, description: e.target.value })} />
+          {err && <p style={{ color: "#dc2626", fontSize: 13 }}>{err}</p>}
+          <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
+            <Btn variant="ghost" onClick={() => setModal(null)}>Cancel</Btn>
+            <Btn onClick={saveCourse}>{form.id ? "Save" : "Create Course"}</Btn>
+          </div>
+        </Modal>
+      )}
       {modal === "quiz" && (
         <Modal title={form.id ? "Edit Quiz" : "New Quiz"} onClose={() => setModal(null)}>
           <Input    label="Quiz Title"   value={form.title       || ""} onChange={e => setForm({ ...form, title:       e.target.value })} />
@@ -968,7 +1082,7 @@ const TeacherApp = ({ db, setDb, user, onLogout }) => {
   );
 };
 
-// ─── STUDENT MODULE ───────────────────────────────────────────────────────────
+// â”€â”€â”€ STUDENT MODULE â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const StudentApp = ({ db, setDb, user, onLogout }) => {
   const [tab, setTab]             = useState("join");
   const [codeInput, setCodeInput] = useState("");
@@ -988,7 +1102,7 @@ const StudentApp = ({ db, setDb, user, onLogout }) => {
   const myCourseIds   = myEnrollments.map(e => e.courseId);
   const myAttempts    = db.attempts.filter(a => a.studentId === user.id);
 
-  // ── Read QR code from URL once on mount only ──────────────────────────────
+  // â”€â”€ Read QR code from URL once on mount only â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 useEffect(() => {
   const params = new URLSearchParams(window.location.search);
   const code = params.get("code");
@@ -1009,27 +1123,38 @@ useEffect(() => {
     setShowRegistration(true);
   }
 
-}, [db.quizzes]);// ← empty: run once on mount only
+}, [db.quizzes]);// â† empty: run once on mount only
 
   const tabs = [
-    { id: "join",      label: "Join via Code", icon: "📱" },
-    { id: "mycourses", label: "My Courses",     icon: "📚" },
-    { id: "myresults", label: "My Results",     icon: "🏆" },
+    { id: "join",      label: "Join via Code", icon: "ðŸ“±" },
+    { id: "mycourses", label: "My Courses",     icon: "ðŸ“š" },
+    { id: "myresults", label: "My Results",     icon: "ðŸ†" },
   ];
 
-  // ── Join via code ─────────────────────────────────────────────────────────
-  const handleJoin = () => {
+  // â”€â”€ Join via code â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  const handleJoin = async () => {
     const code = codeInput.trim().toUpperCase();
     if (!code) { setCodeError("Please enter a code."); return; }
 
-    const course = db.courses.find(c => c.joinCode.toUpperCase() === code);
+    const course = db.courses.find(c => c.joinCode?.toUpperCase() === code);
     if (course) {
       const already = myEnrollments.find(e => e.courseId === course.id);
       if (!already) {
-        setDb(d => ({
-          ...d,
-          enrollments: [...d.enrollments, { id: genId(), studentId: user.id, courseId: course.id }],
-        }));
+        try {
+          const enrollmentData = {
+            studentId: user.id,
+            courseId: course.id,
+            createdAt: new Date().toISOString()
+          };
+          const ref = await addDoc(collection(firestore, "enrollments"), enrollmentData);
+          setDb(d => ({
+            ...d,
+            enrollments: [...d.enrollments, { id: ref.id, ...enrollmentData }]
+          }));
+        } catch (err) {
+          alert(err.message);
+          return;
+        }
       }
       alert(`Joined ${course.name}`);
       setCodeInput("");
@@ -1037,7 +1162,7 @@ useEffect(() => {
       return;
     }
 
-    const quiz = db.quizzes.find(q => q.joinCode.toUpperCase() === code);
+    const quiz = db.quizzes.find(q => q.joinCode?.toUpperCase() === code);
     if (quiz) {
       setPendingQuiz(quiz);
       setShowRegistration(true);
@@ -1049,7 +1174,7 @@ useEffect(() => {
     setCodeError("Invalid code.");
   };
 
-  // ── Launch quiz (after registration) ─────────────────────────────────────
+  // â”€â”€ Launch quiz (after registration) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const launchQuiz = (quiz) => {
     const alreadyAttempted = db.attempts.find(
       a => a.studentId === user.id && a.quizId === quiz.id
@@ -1064,7 +1189,7 @@ useEffect(() => {
     setResult(null);
   };
 
-  // ── Registration screen handler ───────────────────────────────────────────
+  // â”€â”€ Registration screen handler â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const startRegisteredQuiz = () => {
     if (!studentName.trim()) { alert("Please enter your name."); return; }
     if (!studentUSN.trim())  { alert("Please enter your USN.");  return; }
@@ -1072,7 +1197,7 @@ useEffect(() => {
     launchQuiz(pendingQuiz);
   };
 
-  // ── Open registration before launching from course view ──────────────────
+  // â”€â”€ Open registration before launching from course view â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const openRegistrationFor = (quiz) => {
     const alreadyAttempted = db.attempts.find(
       a => a.studentId === user.id && a.quizId === quiz.id
@@ -1085,32 +1210,41 @@ useEffect(() => {
     setShowRegistration(true);
   };
 
-  // ── Submit quiz ───────────────────────────────────────────────────────────
-  const submitQuiz = () => {
+  // â”€â”€ Submit quiz â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  const submitQuiz = async () => {
     if (Object.keys(answers).length < activeQuiz.questions.length) {
       alert("Please answer all questions before submitting.");
       return;
     }
+
     let score = 0;
     activeQuiz.questions.forEach((q, i) => {
       if (answers[i] === q.correctAnswer) score++;
     });
-    const attempt = {
-      id:          genId(),
-      studentId:   user.id,
-      studentName: studentName,
-      studentUSN:  studentUSN,
-      quizId:      activeQuiz.id,
-      answers:     { ...answers },
-      score,                          // plain number e.g. 4
-      completedAt: new Date().toISOString(),
+
+    const attemptData = {
+      studentId: user.id,
+      studentName: studentName.trim(),
+      studentUSN: studentUSN.trim(),
+      quizId: activeQuiz.id,
+      answers: { ...answers },
+      score,
+      completedAt: new Date().toISOString()
     };
-    setDb(d => ({ ...d, attempts: [...d.attempts, attempt] }));
-    setResult({ score, total: activeQuiz.questions.length });
-    setSubmitted(true);
+
+    try {
+      const ref = await addDoc(collection(firestore, "attempts"), attemptData);
+      const attempt = { id: ref.id, ...attemptData };
+
+      setDb(d => ({ ...d, attempts: [...d.attempts, attempt] }));
+      setResult({ score, total: activeQuiz.questions.length });
+      setSubmitted(true);
+    } catch (err) {
+      alert(err.message);
+    }
   };
 
-  // ── Registration screen ───────────────────────────────────────────────────
+  // â”€â”€ Registration screen â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   if (showRegistration) {
     return (
       <div style={{ minHeight: "100vh", display: "flex", justifyContent: "center", alignItems: "center", background: "#f8fafc" }}>
@@ -1135,14 +1269,14 @@ useEffect(() => {
             <Btn variant="ghost" onClick={() => { setShowRegistration(false); setPendingQuiz(null); }}>
               Cancel
             </Btn>
-            <Btn onClick={startRegisteredQuiz}>Start Quiz →</Btn>
+            <Btn onClick={startRegisteredQuiz}>Start Quiz â†’</Btn>
           </div>
         </Card>
       </div>
     );
   }
 
-  // ── Quiz taking / results screen ──────────────────────────────────────────
+  // â”€â”€ Quiz taking / results screen â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   if (activeQuiz) {
     const pct        = submitted ? Math.round((result.score / result.total) * 100) : 0;
     const grade      = pct >= 90 ? "A" : pct >= 75 ? "B" : pct >= 60 ? "C" : pct >= 50 ? "D" : "F";
@@ -1151,7 +1285,7 @@ useEffect(() => {
     return (
       <div style={{ minHeight: "100vh", background: "#f8fafc" }}>
         <div style={{ background: "#0f172a", padding: "16px 32px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <div style={{ color: "#fff", fontWeight: 800, fontSize: 18 }}>📋 Quizly — {activeQuiz.title}</div>
+          <div style={{ color: "#fff", fontWeight: 800, fontSize: 18 }}>ðŸ“‹ Quizly â€” {activeQuiz.title}</div>
           {!submitted && (
             <button onClick={() => setActiveQuiz(null)} style={{ background: "none", border: "1px solid #475569", color: "#94a3b8", padding: "6px 14px", borderRadius: 8, cursor: "pointer", fontFamily: "inherit" }}>
               Exit Quiz
@@ -1164,7 +1298,7 @@ useEffect(() => {
             <>
               <div style={{ marginBottom: 28 }}>
                 <h2 style={{ margin: "0 0 6px", fontWeight: 800, fontSize: 24, color: "#0f172a" }}>{activeQuiz.title}</h2>
-                <p style={{ margin: "0 0 12px", color: "#64748b" }}>{activeQuiz.description} · {activeQuiz.questions.length} questions</p>
+                <p style={{ margin: "0 0 12px", color: "#64748b" }}>{activeQuiz.description} Â· {activeQuiz.questions.length} questions</p>
                 <div style={{ background: "#e2e8f0", borderRadius: 20, height: 6 }}>
                   <div style={{ height: 6, borderRadius: 20, background: "#1e40af", width: `${(Object.keys(answers).length / activeQuiz.questions.length) * 100}%`, transition: "width .3s" }} />
                 </div>
@@ -1188,7 +1322,7 @@ useEffect(() => {
               ))}
 
               <div style={{ textAlign: "center", marginTop: 32 }}>
-                <Btn size="lg" variant="success" onClick={submitQuiz}>Submit Quiz ✓</Btn>
+                <Btn size="lg" variant="success" onClick={submitQuiz}>Submit Quiz âœ“</Btn>
               </div>
             </>
           ) : (
@@ -1202,7 +1336,7 @@ useEffect(() => {
                   You scored <strong>{result.score}</strong> out of <strong>{result.total}</strong>
                 </p>
                 <p style={{ margin: "0 0 24px", fontSize: 14, color: "#64748b" }}>
-                  {pct === 100 ? "🎉 Perfect!" : pct >= 75 ? "Great job!" : pct >= 50 ? "Keep practicing!" : "Better luck next time."}
+                  {pct === 100 ? "ðŸŽ‰ Perfect!" : pct >= 75 ? "Great job!" : pct >= 50 ? "Keep practicing!" : "Better luck next time."}
                 </p>
                 <Btn onClick={() => setActiveQuiz(null)} variant="outline">Back to My Courses</Btn>
               </Card>
@@ -1213,7 +1347,7 @@ useEffect(() => {
                 return (
                   <Card key={q.id} style={{ marginBottom: 12, border: `2px solid ${correct ? "#bbf7d0" : "#fecaca"}` }}>
                     <div style={{ display: "flex", gap: 10, marginBottom: 10 }}>
-                      <span style={{ fontSize: 18 }}>{correct ? "✅" : "❌"}</span>
+                      <span style={{ fontSize: 18 }}>{correct ? "âœ…" : "âŒ"}</span>
                       <span style={{ fontWeight: 700, color: "#1e293b" }}>Q{qi + 1}. {q.text}</span>
                     </div>
                     <div style={{ paddingLeft: 28, display: "grid", gap: 6 }}>
@@ -1222,7 +1356,7 @@ useEffect(() => {
                         const isSelected = oi === answers[qi];
                         return (
                           <div key={oi} style={{ fontSize: 13, padding: "5px 10px", borderRadius: 6, background: isCorrect ? "#d1fae5" : isSelected ? "#fee2e2" : "#f8fafc", color: isCorrect ? "#065f46" : isSelected ? "#991b1b" : "#64748b", fontWeight: isCorrect || isSelected ? 600 : 400 }}>
-                            {isCorrect ? "✓ " : isSelected ? "✗ " : `${String.fromCharCode(65 + oi)}. `}{opt}
+                            {isCorrect ? "âœ“ " : isSelected ? "âœ— " : `${String.fromCharCode(65 + oi)}. `}{opt}
                             {isCorrect && <span style={{ marginLeft: 8, fontSize: 11 }}>(Correct Answer)</span>}
                           </div>
                         );
@@ -1238,20 +1372,20 @@ useEffect(() => {
     );
   }
 
-  // ── Main student dashboard ────────────────────────────────────────────────
+  // â”€â”€ Main student dashboard â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   return (
     <div style={{ display: "flex" }}>
       <Sidebar user={user} activeTab={tab} setTab={t => { setTab(t); setSelectedCourse(null); }} tabs={tabs} onLogout={onLogout} />
       <main style={{ flex: 1, padding: 32, background: "#f8fafc", minHeight: "100vh" }}>
 
-        {/* ── JOIN TAB ── */}
+        {/* â”€â”€ JOIN TAB â”€â”€ */}
         {tab === "join" && (
           <div style={{ maxWidth: 520, margin: "0 auto" }}>
             <h2 style={{ margin: "0 0 6px", fontWeight: 800, fontSize: 26, color: "#0f172a" }}>Join via QR Code</h2>
             <p style={{ margin: "0 0 32px", color: "#64748b" }}>Scan the QR code shared by your teacher, or enter the code manually below.</p>
 
             <Card style={{ textAlign: "center", marginBottom: 28, padding: 36, background: "linear-gradient(135deg,#0f172a,#1e3a5f)", border: "none" }}>
-              <div style={{ fontSize: 64, marginBottom: 12 }}>📱</div>
+              <div style={{ fontSize: 64, marginBottom: 12 }}>ðŸ“±</div>
               <div style={{ color: "#94a3b8", fontSize: 14, marginBottom: 6 }}>Point your camera at the QR code</div>
               <div style={{ color: "#64748b", fontSize: 12 }}>or enter the code below</div>
             </Card>
@@ -1266,9 +1400,9 @@ useEffect(() => {
                   placeholder="e.g. CRS-MATH1 or QZ-ALG01"
                   style={{ flex: 1, padding: "11px 14px", borderRadius: 8, border: codeError ? "2px solid #dc2626" : "1.5px solid #d1d5db", fontSize: 15, fontFamily: "monospace", fontWeight: 700, letterSpacing: 1, textTransform: "uppercase", outline: "none" }}
                 />
-                <Btn size="md" onClick={handleJoin}>Join →</Btn>
+                <Btn size="md" onClick={handleJoin}>Join â†’</Btn>
               </div>
-              {codeError && <p style={{ color: "#dc2626", fontSize: 13, margin: "10px 0 0" }}>⚠ {codeError}</p>}
+              {codeError && <p style={{ color: "#dc2626", fontSize: 13, margin: "10px 0 0" }}>âš  {codeError}</p>}
               <p style={{ fontSize: 12, color: "#94a3b8", margin: "14px 0 0" }}>
                 Use a <strong>CRS-XXXXX</strong> code to join a full course, or a <strong>QZ-XXXXX</strong> code to directly attempt a quiz.
               </p>
@@ -1294,17 +1428,17 @@ useEffect(() => {
           </div>
         )}
 
-        {/* ── MY COURSES TAB — course list ── */}
+        {/* â”€â”€ MY COURSES TAB â€” course list â”€â”€ */}
         {tab === "mycourses" && !selectedCourse && (
           <>
             <h2 style={{ margin: "0 0 6px", fontWeight: 800, fontSize: 26, color: "#0f172a" }}>My Courses</h2>
             <p style={{ margin: "0 0 24px", color: "#64748b" }}>Courses you have joined. Click a course to take its quizzes.</p>
             {myCourseIds.length === 0 ? (
               <Card style={{ textAlign: "center", padding: 48 }}>
-                <div style={{ fontSize: 48, marginBottom: 16 }}>📱</div>
+                <div style={{ fontSize: 48, marginBottom: 16 }}>ðŸ“±</div>
                 <div style={{ fontWeight: 700, fontSize: 16, color: "#1e293b", marginBottom: 8 }}>No courses joined yet</div>
                 <div style={{ color: "#64748b", marginBottom: 20 }}>Scan a QR code or enter a course code from your teacher.</div>
-                <Btn onClick={() => setTab("join")}>Join a Course →</Btn>
+                <Btn onClick={() => setTab("join")}>Join a Course â†’</Btn>
               </Card>
             ) : (
               <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px,1fr))", gap: 16 }}>
@@ -1314,10 +1448,10 @@ useEffect(() => {
                   const done    = myAttempts.filter(a => db.quizzes.find(q => q.id === a.quizId && q.courseId === c.id)).length;
                   return (
                     <Card key={c.id} style={{ cursor: "pointer" }} onClick={() => setSelectedCourse(c)}>
-                      <div style={{ width: 44, height: 44, borderRadius: 10, background: "#eff6ff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 24, marginBottom: 12 }}>📚</div>
+                      <div style={{ width: 44, height: 44, borderRadius: 10, background: "#eff6ff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 24, marginBottom: 12 }}>ðŸ“š</div>
                       <div style={{ fontWeight: 700, fontSize: 16, color: "#1e293b", marginBottom: 4 }}>{c.name}</div>
                       <div style={{ fontSize: 13, color: "#64748b", marginBottom: 12 }}>{c.description}</div>
-                      <div style={{ fontSize: 12, color: "#94a3b8" }}>👨‍🏫 {teacher?.name || "—"} · 📝 {qCount} quiz{qCount !== 1 ? "zes" : ""} · ✅ {done} done</div>
+                      <div style={{ fontSize: 12, color: "#94a3b8" }}>ðŸ‘¨â€ðŸ« {teacher?.name || "â€”"} Â· ðŸ“ {qCount} quiz{qCount !== 1 ? "zes" : ""} Â· âœ… {done} done</div>
                     </Card>
                   );
                 })}
@@ -1326,10 +1460,10 @@ useEffect(() => {
           </>
         )}
 
-        {/* ── MY COURSES TAB — quiz list inside a course ── */}
+        {/* â”€â”€ MY COURSES TAB â€” quiz list inside a course â”€â”€ */}
         {tab === "mycourses" && selectedCourse && (
           <>
-            <button onClick={() => setSelectedCourse(null)} style={{ background: "none", border: "none", color: "#2563eb", cursor: "pointer", fontWeight: 600, padding: 0, fontSize: 14, marginBottom: 12 }}>← Back to My Courses</button>
+            <button onClick={() => setSelectedCourse(null)} style={{ background: "none", border: "none", color: "#2563eb", cursor: "pointer", fontWeight: 600, padding: 0, fontSize: 14, marginBottom: 12 }}>â† Back to My Courses</button>
             <h2 style={{ margin: "0 0 4px", fontWeight: 800, fontSize: 24, color: "#0f172a" }}>{selectedCourse.name}</h2>
             <p style={{ margin: "0 0 24px", color: "#64748b" }}>{selectedCourse.description}</p>
             {db.quizzes.filter(q => q.courseId === selectedCourse.id).length === 0
@@ -1346,19 +1480,19 @@ useEffect(() => {
                           <div style={{ fontWeight: 700, fontSize: 16, color: "#1e293b" }}>{q.title}</div>
                           <div style={{ fontSize: 13, color: "#64748b", marginTop: 2 }}>{q.description}</div>
                           <div style={{ fontSize: 12, color: "#94a3b8", marginTop: 6 }}>
-                            ❓ {q.questions.length} questions
+                            â“ {q.questions.length} questions
                             {pct !== null && (
                               <span style={{ color: pct >= 75 ? "#059669" : "#d97706", fontWeight: 700, marginLeft: 8 }}>
-                                · Last: {pct}%
+                                Â· Last: {pct}%
                               </span>
                             )}
                           </div>
                         </div>
                         {attempt ? (
-                          <Btn size="sm" disabled variant="outline">Completed ✓</Btn>
+                          <Btn size="sm" disabled variant="outline">Completed âœ“</Btn>
                         ) : (
-                          // ← goes through registration so name/USN are always captured
-                          <Btn size="sm" onClick={() => openRegistrationFor(q)}>Start Quiz →</Btn>
+                          // â† goes through registration so name/USN are always captured
+                          <Btn size="sm" onClick={() => openRegistrationFor(q)}>Start Quiz â†’</Btn>
                         )}
                       </Card>
                     );
@@ -1369,7 +1503,7 @@ useEffect(() => {
           </>
         )}
 
-        {/* ── MY RESULTS TAB ── */}
+        {/* â”€â”€ MY RESULTS TAB â”€â”€ */}
         {tab === "myresults" && (
           <>
             <h2 style={{ margin: "0 0 6px", fontWeight: 800, fontSize: 26, color: "#0f172a" }}>My Results</h2>
@@ -1389,9 +1523,9 @@ useEffect(() => {
                       <Card key={a.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                         <div>
                           <div style={{ fontWeight: 700, fontSize: 15, color: "#1e293b" }}>{quiz?.title || "Deleted Quiz"}</div>
-                          <div style={{ fontSize: 13, color: "#64748b" }}>📚 {course?.name || "—"}</div>
+                          <div style={{ fontSize: 13, color: "#64748b" }}>ðŸ“š {course?.name || "â€”"}</div>
                           <div style={{ fontSize: 12, color: "#94a3b8", marginTop: 4 }}>
-                            {a.completedAt ? new Date(a.completedAt).toLocaleString() : "—"}
+                            {a.completedAt ? new Date(a.completedAt).toLocaleString() : "â€”"}
                           </div>
                         </div>
                         <div style={{ textAlign: "right" }}>
@@ -1414,7 +1548,7 @@ useEffect(() => {
   );
 };
 
-// ─── LOGIN PAGE ───────────────────────────────────────────────────────────────
+// â”€â”€â”€ LOGIN PAGE â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const LoginPage = ({ db, onLogin }) => {
   const [email, setEmail]       = useState("");
   const [password, setPassword] = useState("");
@@ -1428,10 +1562,10 @@ const LoginPage = ({ db, onLogin }) => {
     { label: "Student (Arjun)",      role: "student" },
   ];
 
-  // ── Fix 1: handleLogin defined inside the component ───────────────────────
+  // â”€â”€ Fix 1: handleLogin defined inside the component â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
  
 
-  // ── Fix 2: demo buttons auto-fill from db, not hardcoded — no email shown ─
+  // â”€â”€ Fix 2: demo buttons auto-fill from db, not hardcoded â€” no email shown â”€
   const handleDemoClick = (label) => {
     const roleMap = {
       "Admin":                 "admin",
@@ -1508,14 +1642,14 @@ console.log("UID:", cred.user.uid);
   return (
     <div style={{ minHeight: "100vh", display: "flex", background: "#f1f5f9" }}>
 
-      {/* ── Left panel ── */}
+      {/* â”€â”€ Left panel â”€â”€ */}
       <div style={{ flex: 1, background: "#0f172a", display: "flex", flexDirection: "column", justifyContent: "center", padding: "60px", position: "relative", overflow: "hidden" }}>
         <div style={{ position: "absolute", inset: 0, backgroundImage: "radial-gradient(circle at 30% 50%, #1e40af22 0%, transparent 60%), radial-gradient(circle at 80% 20%, #7c3aed22 0%, transparent 50%)" }} />
         <div style={{ position: "relative", zIndex: 1 }}>
-          <div style={{ fontSize: 40, marginBottom: 16 }}>📋</div>
+          <div style={{ fontSize: 40, marginBottom: 16 }}>ðŸ“‹</div>
           <h1 style={{ color: "#fff", fontWeight: 900, fontSize: 40, margin: "0 0 16px", letterSpacing: -1 }}>Quizly</h1>
           <p style={{ color: "#94a3b8", fontSize: 16, lineHeight: 1.6, maxWidth: 380, marginBottom: 48 }}>
-            QR-powered quiz platform. Teachers share QR codes — students scan to access only their assigned courses.
+            QR-powered quiz platform. Teachers share QR codes â€” students scan to access only their assigned courses.
           </p>
 
           <p style={{ color: "#64748b", fontSize: 12, marginBottom: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: 1 }}>
@@ -1531,7 +1665,7 @@ console.log("UID:", cred.user.uid);
                 onMouseEnter={e => e.currentTarget.style.borderColor = "#475569"}
                 onMouseLeave={e => e.currentTarget.style.borderColor = "#334155"}
               >
-                {/* ── Fix 2: only label shown, no email or password ── */}
+                {/* â”€â”€ Fix 2: only label shown, no email or password â”€â”€ */}
                 <span style={{ color: "#f1f5f9", fontWeight: 600, fontSize: 13 }}>{d.label}</span>
                 <Badge role={d.role} />
               </button>
@@ -1544,7 +1678,7 @@ console.log("UID:", cred.user.uid);
         </div>
       </div>
 
-      {/* ── Right panel ── */}
+      {/* â”€â”€ Right panel â”€â”€ */}
       <div style={{ width: 440, display: "flex", alignItems: "center", justifyContent: "center", padding: 40 }}>
         <div style={{ width: "100%" }}>
           <h2 style={{ fontWeight: 800, fontSize: 26, color: "#0f172a", margin: "0 0 6px" }}>Welcome back</h2>
@@ -1567,11 +1701,11 @@ console.log("UID:", cred.user.uid);
           />
 
           {err && (
-            <p style={{ color: "#dc2626", fontSize: 13, margin: "-8px 0 12px" }}>⚠ {err}</p>
+            <p style={{ color: "#dc2626", fontSize: 13, margin: "-8px 0 12px" }}>âš  {err}</p>
           )}
 
           <Btn size="lg" onClick={handleLogin} style={{ width: "100%", justifyContent: "center" }}>
-            Sign In →
+            Sign In â†’
           </Btn>
 
           <p style={{ color: "#94a3b8", fontSize: 12, marginTop: 24, textAlign: "center" }}>
@@ -1583,7 +1717,7 @@ console.log("UID:", cred.user.uid);
   );
 };
 
-// ─── ROOT ─────────────────────────────────────────────────────────────────────
+// â”€â”€â”€ ROOT â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 export default function App() {
 
   const [db, setDb] = useState({
@@ -1659,11 +1793,11 @@ export default function App() {
 
   const logout = () => setCurrentUser(null);
 
-  // ── QR code from URL ──────────────────────────────────────────────────────
+  // â”€â”€ QR code from URL â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const params = new URLSearchParams(window.location.search);
   const qrCode = params.get("code");
 
-  // ── Fix 3: guest gets a unique id per session, not "guest" ────────────────
+  // â”€â”€ Fix 3: guest gets a unique id per session, not "guest" â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   if (!currentUser) {
     if (qrCode) {
       const quiz = db.quizzes.find(
@@ -1690,7 +1824,7 @@ export default function App() {
     return <LoginPage db={db} onLogin={setCurrentUser} />;
   }
 
-  // ── Route by role ─────────────────────────────────────────────────────────
+  // â”€â”€ Route by role â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   if (currentUser.role === "admin") {
     return <AdminApp   db={db} setDb={setDb} user={currentUser} onLogout={logout} />;
   }
@@ -1699,3 +1833,5 @@ export default function App() {
   }
   return   <StudentApp db={db} setDb={setDb} user={currentUser} onLogout={logout} />;
 }
+
+
