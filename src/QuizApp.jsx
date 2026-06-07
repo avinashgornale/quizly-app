@@ -23,7 +23,7 @@ const genCode = (prefix) => prefix + Math.random().toString(36).substr(2, 5).toU
 
 
 
-// â”€â”€â”€ Shared UI â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+//  Shared UI 
 const roleColor = { admin: "#dc2626", teacher: "#2563eb", student: "#059669" };
 const roleBg    = { admin: "#fef2f2", teacher: "#eff6ff", student: "#ecfdf5" };
 
@@ -46,7 +46,7 @@ const Modal = ({ title, onClose, children, wide }) => (
     <div style={{ background: "#fff", borderRadius: 16, width: "100%", maxWidth: wide ? 680 : 480, maxHeight: "92vh", overflow: "auto", boxShadow: "0 25px 60px rgba(0,0,0,.3)" }}>
       <div style={{ padding: "18px 24px", borderBottom: "1.5px solid #e2e8f0", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <span style={{ fontWeight: 700, fontSize: 17, color: "#1e293b" }}>{title}</span>
-        <button onClick={onClose} style={{ background: "none", border: "none", fontSize: 24, cursor: "pointer", color: "#94a3b8" }}>Ã—</button>
+        <button onClick={onClose} style={{ background: "none", border: "none", fontSize: 24, cursor: "pointer", color: "#94a3b8" }}></button>
       </div>
       <div style={{ padding: 24 }}>{children}</div>
     </div>
@@ -55,23 +55,23 @@ const Modal = ({ title, onClose, children, wide }) => (
 
 const Input = ({ label, ...props }) => (
   <div style={{ marginBottom: 16 }}>
-    {label && <label style={{ display: "block", marginBottom: 6, fontWeight: 600, fontSize: 13, color: "#374151" }}>{label}</label>}
+   {label && <label style={{ display: "block", marginBottom: 6, fontWeight: 600, fontSize: 13, color: "#374151" }}>{label}</label>}
     <input {...props} style={{ width: "100%", padding: "9px 12px", borderRadius: 8, border: "1.5px solid #d1d5db", fontSize: 14, fontFamily: "inherit", boxSizing: "border-box", ...(props.style||{}) }} />
   </div>
 );
 
 const Textarea = ({ label, ...props }) => (
   <div style={{ marginBottom: 16 }}>
-    {label && <label style={{ display: "block", marginBottom: 6, fontWeight: 600, fontSize: 13, color: "#374151" }}>{label}</label>}
+   {label && <label style={{ display: "block", marginBottom: 6, fontWeight: 600, fontSize: 13, color: "#374151" }}>{label}</label>}
     <textarea {...props} style={{ width: "100%", padding: "9px 12px", borderRadius: 8, border: "1.5px solid #d1d5db", fontSize: 14, fontFamily: "inherit", boxSizing: "border-box", resize: "vertical", minHeight: 80, ...(props.style||{}) }} />
   </div>
 );
 
 const Select = ({ label, options, ...props }) => (
   <div style={{ marginBottom: 16 }}>
-    {label && <label style={{ display: "block", marginBottom: 6, fontWeight: 600, fontSize: 13, color: "#374151" }}>{label}</label>}
+   {label && <label style={{ display: "block", marginBottom: 6, fontWeight: 600, fontSize: 13, color: "#374151" }}>{label}</label>}
     <select {...props} style={{ width: "100%", padding: "9px 12px", borderRadius: 8, border: "1.5px solid #d1d5db", fontSize: 14, fontFamily: "inherit", background: "#fff", boxSizing: "border-box" }}>
-      {options.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+     {options.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
     </select>
   </div>
 );
@@ -84,7 +84,7 @@ const Stat = ({ label, value, icon, color = "#1e293b" }) => (
   </Card>
 );
 
-// â”€â”€â”€ Credentials Panel (admin only, post-login) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+//  Credentials Panel (admin only, post-login) 
 const maskEmail = (email) => {
   const [local, domain] = email.split("@");
   return local.slice(0, 2) + "*".repeat(Math.max(3, local.length - 2)) + "@" + domain;
@@ -114,45 +114,45 @@ const CredentialsPanel = ({ db }) => {
 
   return (
     <>
-      {/* Warning banner */}
+     {/* Warning banner */}
       <div style={{ background: "#fef3c7", border: "1.5px solid #fbbf24", borderRadius: 10, padding: "10px 16px", marginBottom: 24, display: "flex", alignItems: "center", gap: 10 }}>
-        <span style={{ fontSize: 18 }}>ðŸ”’</span>
+        <span style={{ fontSize: 18 }}></span>
         <span style={{ fontSize: 13, color: "#92400e", fontWeight: 500 }}>
-          This section is visible to admins only. Login credentials are sensitive â€” handle with care.
+          This section is visible to admins only. Login credentials are sensitive  handle with care.
         </span>
       </div>
 
-      {/* Role tabs */}
+     {/* Role tabs */}
       <div style={{ display: "flex", gap: 10, marginBottom: 20, alignItems: "center" }}>
-        <button style={tabStyle("teacher")} onClick={() => { setActiveRole("teacher"); setRevealed({}); }}>ðŸ§‘â€ðŸ« Teachers</button>
-        <button style={tabStyle("student")} onClick={() => { setActiveRole("student"); setRevealed({}); }}>ðŸŽ“ Students</button>
+        <button style={tabStyle("teacher")} onClick={() => { setActiveRole("teacher"); setRevealed({}); }}> Teachers</button>
+        <button style={tabStyle("student")} onClick={() => { setActiveRole("student"); setRevealed({}); }}> Students</button>
         <div style={{ marginLeft: "auto", display: "flex", gap: 8 }}>
-          <Btn size="sm" variant="ghost" onClick={revealAll}>ðŸ‘ Show All</Btn>
-          <Btn size="sm" variant="ghost" onClick={hideAll}>ðŸ™ˆ Hide All</Btn>
+          <Btn size="sm" variant="ghost" onClick={revealAll}> Show All</Btn>
+          <Btn size="sm" variant="ghost" onClick={hideAll}> Hide All</Btn>
         </div>
       </div>
 
-      {/* Table */}
+     {/* Table */}
       <Card style={{ padding: 0, overflow: "hidden" }}>
         <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
           <thead>
             <tr style={{ background: "#f8fafc", borderBottom: "1.5px solid #e2e8f0" }}>
-              {["Name", "Email", "Password", "Role", "Reveal"].map(h => (
+             {["Name", "Email", "Password", "Role", "Reveal"].map(h => (
                 <th key={h} style={{ padding: "11px 16px", textAlign: "left", fontWeight: 700, fontSize: 12, color: "#64748b", textTransform: "uppercase", letterSpacing: 0.5 }}>{h}</th>
               ))}
             </tr>
           </thead>
           <tbody>
-            {users.map((u, i) => {
+           {users.map((u, i) => {
               const show = !!revealed[u.id];
               return (
                 <tr key={u.id} style={{ borderBottom: i < users.length - 1 ? "1px solid #f1f5f9" : "none", background: show ? "#f0fdf4" : "#fff", transition: "background .2s" }}>
                   <td style={{ padding: "12px 16px", fontWeight: 600, color: "#1e293b" }}>{u.name}</td>
                   <td style={{ padding: "12px 16px", fontFamily: "monospace", fontSize: 13, color: show ? "#0f172a" : "#94a3b8" }}>
-                    {show ? u.email : maskEmail(u.email)}
+                   {show ? u.email : maskEmail(u.email)}
                   </td>
                   <td style={{ padding: "12px 16px", fontFamily: "monospace", fontSize: 13, color: show ? "#0f172a" : "#94a3b8" }}>
-                    {show ? u.password : "â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢"}
+                   {show ? u.password : ""}
                   </td>
                   <td style={{ padding: "12px 16px" }}><Badge role={u.role} /></td>
                   <td style={{ padding: "12px 16px" }}>
@@ -161,7 +161,7 @@ const CredentialsPanel = ({ db }) => {
                       title={show ? "Hide credentials" : "Reveal credentials"}
                       style={{ background: show ? "#dcfce7" : "#f1f5f9", border: "none", borderRadius: 6, padding: "5px 12px", cursor: "pointer", fontSize: 13, fontWeight: 600, color: show ? "#059669" : "#475569", transition: "all .15s" }}
                     >
-                      {show ? "ðŸ‘ Hide" : "ðŸ” Show"}
+                     {show ? " Hide" : " Show"}
                     </button>
                   </td>
                 </tr>
@@ -174,7 +174,7 @@ const CredentialsPanel = ({ db }) => {
   );
 };
 
-// â”€â”€â”€ QR Code Modal â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+//  QR Code Modal 
 const QRModal = ({ title, code, description, onClose }) => {
   const [copied, setCopied] = useState(false);
   const canvasRef = useRef(null);
@@ -211,7 +211,7 @@ const QRModal = ({ title, code, description, onClose }) => {
   };
 
   return (
-    <Modal title={`QR Code â€” ${title}`} onClose={onClose}>
+    <Modal title={`QR Code  ${title}`} onClose={onClose}>
       <div style={{ textAlign: "center" }}>
         <p style={{ color: "#64748b", fontSize: 14, margin: "0 0 20px" }}>{description}</p>
         <div style={{ display: "inline-block", padding: 20, background: "#fff", borderRadius: 16, border: "3px solid #0f172a", marginBottom: 24, boxShadow: "0 10px 30px rgba(0,0,0,.15)" }}>
@@ -223,7 +223,7 @@ const QRModal = ({ title, code, description, onClose }) => {
             <div style={{ fontSize: 26, fontWeight: 900, color: "#f8fafc", letterSpacing: 3, fontFamily: "monospace" }}>{code}</div>
           </div>
           <button onClick={copy} style={{ background: copied ? "#059669" : "#1e40af", border: "none", borderRadius: 8, color: "#fff", padding: "8px 14px", cursor: "pointer", fontFamily: "inherit", fontWeight: 600, fontSize: 13, transition: "all .2s" }}>
-            {copied ? "âœ“ Copied" : "Copy"}
+           {copied ? " Copied" : "Copy"}
           </button>
         </div>
         <p style={{ fontSize: 13, color: "#94a3b8", margin: 0 }}>Students scan this QR code or enter the code manually to access this content.</p>
@@ -232,11 +232,11 @@ const QRModal = ({ title, code, description, onClose }) => {
   );
 };
 
-// â”€â”€â”€ Sidebar â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+//  Sidebar 
 const Sidebar = ({ user, activeTab, setTab, tabs, onLogout }) => (
   <div style={{ width: 240, minHeight: "100vh", background: "#0f172a", display: "flex", flexDirection: "column", padding: "0 0 24px", flexShrink: 0 }}>
     <div style={{ padding: "28px 20px 20px", borderBottom: "1px solid #1e293b" }}>
-      <div style={{ fontSize: 22, fontWeight: 800, color: "#fff", letterSpacing: -0.5 }}>ðŸ“‹ Quizly</div>
+      <div style={{ fontSize: 22, fontWeight: 800, color: "#fff", letterSpacing: -0.5 }}> Quizly</div>
       <div style={{ marginTop: 16, display: "flex", alignItems: "center", gap: 10 }}>
         <div style={{ width: 38, height: 38, borderRadius: "50%", background: roleColor[user.role], display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontWeight: 800, fontSize: 15, flexShrink: 0 }}>{user.name[0]}</div>
         <div>
@@ -246,19 +246,19 @@ const Sidebar = ({ user, activeTab, setTab, tabs, onLogout }) => (
       </div>
     </div>
     <nav style={{ flex: 1, padding: "16px 12px", display: "flex", flexDirection: "column", gap: 4 }}>
-      {tabs.map(t => (
+     {tabs.map(t => (
         <button key={t.id} onClick={() => setTab(t.id)} style={{ background: activeTab === t.id ? "#1e40af" : "transparent", color: activeTab === t.id ? "#fff" : "#94a3b8", border: "none", cursor: "pointer", padding: "10px 14px", borderRadius: 8, textAlign: "left", fontFamily: "inherit", fontWeight: 600, fontSize: 14, display: "flex", alignItems: "center", gap: 10, transition: "all .15s" }}>
           <span style={{ fontSize: 18 }}>{t.icon}</span>{t.label}
         </button>
       ))}
     </nav>
     <div style={{ padding: "0 12px" }}>
-      <button onClick={onLogout} style={{ width: "100%", background: "transparent", color: "#94a3b8", border: "1px solid #334155", padding: "9px 14px", borderRadius: 8, cursor: "pointer", fontFamily: "inherit", fontWeight: 600, fontSize: 14, textAlign: "left" }}>â¬… Logout</button>
+      <button onClick={onLogout} style={{ width: "100%", background: "transparent", color: "#94a3b8", border: "1px solid #334155", padding: "9px 14px", borderRadius: 8, cursor: "pointer", fontFamily: "inherit", fontWeight: 600, fontSize: 14, textAlign: "left" }}> Logout</button>
     </div>
   </div>
 );
 
-// â”€â”€â”€ ADMIN MODULE â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+//  ADMIN MODULE 
 const AdminApp = ({ db, setDb, user, onLogout }) => {
   const [tab, setTab]     = useState("overview");
   const [modal, setModal] = useState(null);
@@ -268,14 +268,14 @@ const AdminApp = ({ db, setDb, user, onLogout }) => {
 
   const teachers = db.users.filter(u => u.role === "teacher");
 
-  // â”€â”€ "Credentials" tab only appears for admin â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  //  "Credentials" tab only appears for admin 
   const tabs = [
-    { id: "overview",     label: "Overview",     icon: "ðŸ " },
-    { id: "users",        label: "Users",         icon: "ðŸ‘¥" },
-    { id: "courses",      label: "Courses",       icon: "ðŸ“š" },
-    { id: "quizzes",      label: "All Quizzes",   icon: "ðŸ“" },
+   { id: "overview",     label: "Overview",     icon: "" },
+   { id: "users",        label: "Users",         icon: "" },
+   { id: "courses",      label: "Courses",       icon: "" },
+   { id: "quizzes",      label: "All Quizzes",   icon: "" },
     ...(user.role === "admin"
-      ? [{ id: "credentials", label: "Credentials", icon: "ðŸ”‘" }]
+      ? [{ id: "credentials", label: "Credentials", icon: "" }]
       : []),
   ];
 
@@ -295,7 +295,7 @@ const AdminApp = ({ db, setDb, user, onLogout }) => {
 
     await setDoc(
   doc(firestore, "users", cred.user.uid),
-      {
+     {
         uid: cred.user.uid,
         name: form.name,
         email: form.email,
@@ -394,41 +394,41 @@ const AdminApp = ({ db, setDb, user, onLogout }) => {
       <Sidebar user={user} activeTab={tab} setTab={setTab} tabs={tabs} onLogout={onLogout} />
       <main style={{ flex: 1, padding: 32, background: "#f8fafc", minHeight: "100vh" }}>
 
-        {tab === "overview" && (
+       {tab === "overview" && (
           <>
             <h2 style={{ margin: "0 0 24px", fontWeight: 800, fontSize: 26, color: "#0f172a" }}>Admin Overview</h2>
             <div style={{ display: "flex", gap: 16, flexWrap: "wrap", marginBottom: 32 }}>
-              <Stat icon="ðŸ§‘â€ðŸ«" label="Teachers"  value={teachers.length}                                      color="#2563eb" />
-              <Stat icon="ðŸŽ“"   label="Students"  value={db.users.filter(u => u.role === "student").length}    color="#059669" />
-              <Stat icon="ðŸ“š"   label="Courses"   value={db.courses.length}                                    color="#7c3aed" />
-              <Stat icon="ðŸ“"   label="Quizzes"   value={db.quizzes.length}                                    color="#d97706" />
-              <Stat icon="âœ…"   label="Attempts"  value={db.attempts.length}                                   color="#dc2626" />
+              <Stat icon="" label="Teachers"  value={teachers.length}                                      color="#2563eb" />
+              <Stat icon=""   label="Students"  value={db.users.filter(u => u.role === "student").length}    color="#059669" />
+              <Stat icon=""   label="Courses"   value={db.courses.length}                                    color="#7c3aed" />
+              <Stat icon=""   label="Quizzes"   value={db.quizzes.length}                                    color="#d97706" />
+              <Stat icon=""   label="Attempts"  value={db.attempts.length}                                   color="#dc2626" />
             </div>
             <Card>
               <h3 style={{ margin: "0 0 12px", fontSize: 15, fontWeight: 700 }}>QR-Based Access</h3>
-              <p style={{ color: "#64748b", fontSize: 14, margin: "0 0 16px" }}>Each course has a unique QR code. Share it with students to grant access. Students <strong>cannot</strong> browse courses freely â€” they must scan or enter the code.</p>
-              <Btn onClick={() => setTab("courses")}>View Course QR Codes â†’</Btn>
+              <p style={{ color: "#64748b", fontSize: 14, margin: "0 0 16px" }}>Each course has a unique QR code. Share it with students to grant access. Students <strong>cannot</strong> browse courses freely  they must scan or enter the code.</p>
+              <Btn onClick={() => setTab("courses")}>View Course QR Codes </Btn>
             </Card>
           </>
         )}
 
-        {tab === "users" && (
+       {tab === "users" && (
           <>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24 }}>
               <h2 style={{ margin: 0, fontWeight: 800, fontSize: 26, color: "#0f172a" }}>User Management</h2>
               <Btn onClick={() => openModal("user", { role: "student" })}>+ Add User</Btn>
             </div>
-            {["teacher", "student"].map(role => (
+           {["teacher", "student"].map(role => (
               <div key={role} style={{ marginBottom: 32 }}>
                 <h3 style={{ margin: "0 0 12px", fontWeight: 700, color: roleColor[role], textTransform: "capitalize" }}>
-                  {role === "teacher" ? "ðŸ§‘â€ðŸ«" : "ðŸŽ“"} {role}s
+                 {role === "teacher" ? "" : ""} {role}s
                 </h3>
                 <div style={{ display: "grid", gap: 12 }}>
-                  {db.users.filter(u => u.role === role).map(u => (
+                 {db.users.filter(u => u.role === role).map(u => (
                     <Card key={u.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "14px 20px" }}>
                       <div>
                         <div style={{ fontWeight: 700, color: "#1e293b" }}>{u.name}</div>
-                        {/* Email is masked here â€” full details only in Credentials tab */}
+                       {/* Email is masked here  full details only in Credentials tab */}
                         <div style={{ fontSize: 13, color: "#64748b" }}>{maskEmail(u.email)}</div>
                       </div>
                       <div style={{ display: "flex", gap: 8 }}>
@@ -443,14 +443,14 @@ const AdminApp = ({ db, setDb, user, onLogout }) => {
           </>
         )}
 
-        {tab === "courses" && (
+       {tab === "courses" && (
           <>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24 }}>
               <h2 style={{ margin: 0, fontWeight: 800, fontSize: 26, color: "#0f172a" }}>Course Management</h2>
               <Btn onClick={() => openModal("course", {})}>+ Add Course</Btn>
             </div>
             <div style={{ display: "grid", gap: 14 }}>
-              {db.courses.map(c => {
+             {db.courses.map(c => {
                 const teacher  = db.users.find(u => u.id === c.teacherId);
                 const qCount   = db.quizzes.filter(q => q.courseId === c.id).length;
                 const enrolled = db.enrollments.filter(e => e.courseId === c.id).length;
@@ -461,14 +461,14 @@ const AdminApp = ({ db, setDb, user, onLogout }) => {
                         <div style={{ fontWeight: 700, fontSize: 16, color: "#1e293b" }}>{c.name}</div>
                         <div style={{ fontSize: 13, color: "#64748b", marginTop: 4 }}>{c.description}</div>
                         <div style={{ fontSize: 12, color: "#94a3b8", marginTop: 8, display: "flex", alignItems: "center", gap: 12 }}>
-                          <span>ðŸ‘¨â€ðŸ« {teacher?.name || "Unassigned"}</span>
-                          <span>ðŸ“ {qCount} quiz{qCount !== 1 ? "zes" : ""}</span>
-                          <span>ðŸŽ“ {enrolled} enrolled</span>
+                          <span> {teacher?.name || "Unassigned"}</span>
+                          <span> {qCount} quiz{qCount !== 1 ? "zes" : ""}</span>
+                          <span> {enrolled} enrolled</span>
                           <span style={{ background: "#f1f5f9", border: "1px solid #e2e8f0", borderRadius: 6, padding: "2px 8px", fontFamily: "monospace", fontWeight: 700, color: "#475569" }}>{c.joinCode}</span>
                         </div>
                       </div>
                       <div style={{ display: "flex", gap: 8 }}>
-                        <Btn size="sm" variant="purple" onClick={() => setQrTarget({ title: c.name, code: c.joinCode, description: `Share this QR to give students access to "${c.name}"` })}>ðŸ“± QR Code</Btn>
+                        <Btn size="sm" variant="purple" onClick={() => setQrTarget({ title: c.name, code: c.joinCode, description: `Share this QR to give students access to "${c.name}"` })}> QR Code</Btn>
                         <Btn size="sm" variant="ghost"  onClick={() => openModal("course", { ...c })}>Edit</Btn>
                         <Btn size="sm" variant="danger" onClick={() => deleteCourse(c.id)}>Delete</Btn>
                       </div>
@@ -480,13 +480,13 @@ const AdminApp = ({ db, setDb, user, onLogout }) => {
           </>
         )}
 
-        {tab === "quizzes" && (
+       {tab === "quizzes" && (
           <>
             <h2 style={{ margin: "0 0 24px", fontWeight: 800, fontSize: 26, color: "#0f172a" }}>All Quizzes</h2>
-            {db.quizzes.length === 0
+           {db.quizzes.length === 0
               ? <Card><p style={{ color: "#94a3b8", textAlign: "center" }}>No quizzes created yet.</p></Card>
               : <div style={{ display: "grid", gap: 14 }}>
-                {db.quizzes.map(q => {
+               {db.quizzes.map(q => {
                   const course   = db.courses.find(c => c.id === q.courseId);
                   const attempts = db.attempts.filter(a => a.quizId === q.id);
                   const avgScore = attempts.length ? Math.round(attempts.reduce((s, a) => s + (a.score / q.questions.length) * 100, 0) / attempts.length) : null;
@@ -497,13 +497,13 @@ const AdminApp = ({ db, setDb, user, onLogout }) => {
                           <div style={{ fontWeight: 700, fontSize: 16, color: "#1e293b" }}>{q.title}</div>
                           <div style={{ fontSize: 13, color: "#64748b", marginTop: 2 }}>{q.description}</div>
                           <div style={{ fontSize: 12, color: "#94a3b8", marginTop: 8, display: "flex", gap: 12, alignItems: "center" }}>
-                            <span>ðŸ“š {course?.name}</span>
-                            <span>â“ {q.questions.length} Qs</span>
-                            <span>ðŸŽ¯ {attempts.length} attempts{avgScore !== null ? ` Â· Avg ${avgScore}%` : ""}</span>
+                            <span> {course?.name}</span>
+                            <span> {q.questions.length} Qs</span>
+                            <span> {attempts.length} attempts{avgScore !== null ? `  Avg ${avgScore}%` : ""}</span>
                             <span style={{ background: "#f1f5f9", border: "1px solid #e2e8f0", borderRadius: 6, padding: "2px 8px", fontFamily: "monospace", fontWeight: 700, color: "#475569" }}>{q.joinCode}</span>
                           </div>
                         </div>
-                        <Btn size="sm" variant="purple" onClick={() => setQrTarget({ title: q.title, code: q.joinCode, description: `Share this QR so students can directly access the quiz "${q.title}"` })}>ðŸ“± QR Code</Btn>
+                        <Btn size="sm" variant="purple" onClick={() => setQrTarget({ title: q.title, code: q.joinCode, description: `Share this QR so students can directly access the quiz "${q.title}"` })}> QR Code</Btn>
                       </div>
                     </Card>
                   );
@@ -513,17 +513,17 @@ const AdminApp = ({ db, setDb, user, onLogout }) => {
           </>
         )}
 
-        {/* â”€â”€ Credentials tab â€” admin only, post-login â”€â”€ */}
-        {tab === "credentials" && user.role === "admin" && (
+       {/*  Credentials tab  admin only, post-login  */}
+       {tab === "credentials" && user.role === "admin" && (
           <>
-            <h2 style={{ margin: "0 0 24px", fontWeight: 800, fontSize: 26, color: "#0f172a" }}>ðŸ”‘ Login Credentials</h2>
+            <h2 style={{ margin: "0 0 24px", fontWeight: 800, fontSize: 26, color: "#0f172a" }}> Login Credentials</h2>
             <CredentialsPanel db={db} />
           </>
         )}
 
       </main>
 
-      {modal === "user" && (
+     {modal === "user" && (
         <Modal title={form.id ? "Edit User" : "Add User"} onClose={closeModal}>
           <Input label="Full Name"     value={form.name     || ""} onChange={e => setForm({ ...form, name:     e.target.value })} />
           <Input label="FACULTY ID/USN" value={form.usn     || ""} onChange={e => setForm({ ...form, usn:      e.target.value })} />
@@ -531,7 +531,7 @@ const AdminApp = ({ db, setDb, user, onLogout }) => {
           <Input label="Password"      value={form.password || ""} onChange={e => setForm({ ...form, password: e.target.value })} />
           <Select label="Role" value={form.role || "student"} onChange={e => setForm({ ...form, role: e.target.value })}
             options={[{ value: "teacher", label: "Teacher" }, { value: "student", label: "Student" }]} />
-          {err && <p style={{ color: "#dc2626", fontSize: 13 }}>{err}</p>}
+         {err && <p style={{ color: "#dc2626", fontSize: 13 }}>{err}</p>}
           <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
             <Btn variant="ghost" onClick={closeModal}>Cancel</Btn>
             <Btn onClick={saveUser}>{form.id ? "Save Changes" : "Add User"}</Btn>
@@ -539,13 +539,13 @@ const AdminApp = ({ db, setDb, user, onLogout }) => {
         </Modal>
       )}
 
-      {modal === "course" && (
+     {modal === "course" && (
         <Modal title={form.id ? "Edit Course" : "Add Course"} onClose={closeModal}>
           <Input    label="Course Name"   value={form.name        || ""} onChange={e => setForm({ ...form, name:        e.target.value })} />
           <Textarea label="Description"   value={form.description || ""} onChange={e => setForm({ ...form, description: e.target.value })} />
           <Select   label="Assign Teacher" value={form.teacherId  || ""} onChange={e => setForm({ ...form, teacherId:   e.target.value })}
-            options={[{ value: "", label: "â€” Select Teacher â€”" }, ...teachers.map(t => ({ value: t.id, label: t.name }))]} />
-          {err && <p style={{ color: "#dc2626", fontSize: 13 }}>{err}</p>}
+            options={[{ value: "", label: " Select Teacher " }, ...teachers.map(t => ({ value: t.id, label: t.name }))]} />
+         {err && <p style={{ color: "#dc2626", fontSize: 13 }}>{err}</p>}
           <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
             <Btn variant="ghost" onClick={closeModal}>Cancel</Btn>
             <Btn onClick={saveCourse}>{form.id ? "Save Changes" : "Create Course"}</Btn>
@@ -553,12 +553,12 @@ const AdminApp = ({ db, setDb, user, onLogout }) => {
         </Modal>
       )}
 
-      {qrTarget && <QRModal title={qrTarget.title} code={qrTarget.code} description={qrTarget.description} onClose={() => setQrTarget(null)} />}
+     {qrTarget && <QRModal title={qrTarget.title} code={qrTarget.code} description={qrTarget.description} onClose={() => setQrTarget(null)} />}
     </div>
   );
 };
 
-// â”€â”€â”€ TEACHER MODULE â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+//  TEACHER MODULE 
 const TeacherApp = ({ db, setDb, user, onLogout }) => {
   const saveCourse = async () => {
     if (!form.name) return setErr("Course name is required.");
@@ -608,11 +608,11 @@ const TeacherApp = ({ db, setDb, user, onLogout }) => {
   const teacherAttempts = db.attempts.filter(a => myQuizIds.includes(a.quizId));
 
   const tabs = [
-    { id: "overview", label: "Overview",   icon: "ðŸ " },
-    { id: "courses",  label: "My Courses", icon: "ðŸ“š" },
-    { id: "quizzes",  label: "My Quizzes", icon: "ðŸ“" },
-    { id: "results",  label: "Results",    icon: "ðŸ“Š" },
-    ...(editingQuiz ? [{ id: "editor", label: "Quiz Editor", icon: "âœï¸" }] : []),
+   { id: "overview", label: "Overview",   icon: "" },
+   { id: "courses",  label: "My Courses", icon: "" },
+   { id: "quizzes",  label: "My Quizzes", icon: "" },
+   { id: "results",  label: "Results",    icon: "" },
+    ...(editingQuiz ? [{ id: "editor", label: "Quiz Editor", icon: "" }] : []),
   ];
 
   const openQuizModal = (data = {}) => {
@@ -728,7 +728,7 @@ const TeacherApp = ({ db, setDb, user, onLogout }) => {
 
   const currentQuiz = editingQuiz ? db.quizzes.find(q => q.id === editingQuiz.id) : null;
 
-  // â”€â”€ Results helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  //  Results helpers 
   const filteredAttempts = selectedQuizId === "all"
     ? teacherAttempts
     : teacherAttempts.filter(a => a.quizId === selectedQuizId);
@@ -755,13 +755,13 @@ const TeacherApp = ({ db, setDb, user, onLogout }) => {
       const pct    = getScorePercent(a);
       const total  = quiz?.questions?.length ?? "?";
       const num    = typeof a.score === "number" ? a.score : parseInt(a.score, 10);
-      // "X out of Y" format â€” plain words that Excel will never misread as a date
+      // "X out of Y" format  plain words that Excel will never misread as a date
       const scoreCell = `${isNaN(num) ? "?" : num} out of ${total}`;
       rows.push([
-        a.studentName || "â€”",
-        a.studentUSN  || "â€”",
-        quiz?.title   || "â€”",
-        course?.name  || "â€”",
+        a.studentName || "",
+        a.studentUSN  || "",
+        quiz?.title   || "",
+        course?.name  || "",
         scoreCell,
         `${pct}%`,
       ]);
@@ -788,26 +788,26 @@ const TeacherApp = ({ db, setDb, user, onLogout }) => {
       <Sidebar user={user} activeTab={tab} setTab={t => { setTab(t); if (t !== "editor") setEditingQuiz(null); }} tabs={tabs} onLogout={onLogout} />
       <main style={{ flex: 1, padding: 32, background: "#f8fafc", minHeight: "100vh" }}>
 
-        {tab === "overview" && (
+       {tab === "overview" && (
           <>
-            <h2 style={{ margin: "0 0 24px", fontWeight: 800, fontSize: 26, color: "#0f172a" }}>Welcome, {user.name.split(" ")[0]} ðŸ‘‹</h2>
+            <h2 style={{ margin: "0 0 24px", fontWeight: 800, fontSize: 26, color: "#0f172a" }}>Welcome, {user.name.split(" ")[0]} </h2>
             <div style={{ display: "flex", gap: 16, flexWrap: "wrap", marginBottom: 32 }}>
-              <Stat icon="ðŸ“š" label="My Courses"     value={myCourses.length}      color="#2563eb" />
-              <Stat icon="ðŸ“" label="My Quizzes"     value={myQuizzes.length}      color="#7c3aed" />
-              <Stat icon="âœ…" label="Total Attempts" value={teacherAttempts.length} color="#059669" />
+              <Stat icon="" label="My Courses"     value={myCourses.length}      color="#2563eb" />
+              <Stat icon="" label="My Quizzes"     value={myQuizzes.length}      color="#7c3aed" />
+              <Stat icon="" label="Total Attempts" value={teacherAttempts.length} color="#059669" />
             </div>
             <Card>
               <h3 style={{ margin: "0 0 8px", fontWeight: 700 }}>Share Course Access via QR</h3>
               <p style={{ color: "#64748b", fontSize: 14, margin: "0 0 16px" }}>Go to <strong>My Courses</strong> or <strong>My Quizzes</strong> to generate QR codes. Students must scan or enter the code to join.</p>
               <div style={{ display: "flex", gap: 10 }}>
-                <Btn onClick={() => setTab("courses")} variant="outline">My Courses â†’</Btn>
+                <Btn onClick={() => setTab("courses")} variant="outline">My Courses </Btn>
                 <Btn onClick={() => { setTab("quizzes"); openQuizModal(); }}>+ New Quiz</Btn>
               </div>
             </Card>
           </>
         )}
 
-        {tab === "courses" && (
+       {tab === "courses" && (
   <>
     <div
       style={{
@@ -832,7 +832,7 @@ const TeacherApp = ({ db, setDb, user, onLogout }) => {
     </div>
 
     <Card>
-      {myCourses.length === 0 ? (
+     {myCourses.length === 0 ? (
         <div
   style={{
     textAlign: "center",
@@ -845,7 +845,7 @@ const TeacherApp = ({ db, setDb, user, onLogout }) => {
       ) : (
         myCourses.map(course => (
           <div key={course.id}>
-            {course.name}
+           {course.name}
           </div>
         ))
       )}
@@ -853,16 +853,16 @@ const TeacherApp = ({ db, setDb, user, onLogout }) => {
   </>
 )}
 
-        {tab === "quizzes" && (
+       {tab === "quizzes" && (
           <>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24 }}>
               <h2 style={{ margin: 0, fontWeight: 800, fontSize: 26, color: "#0f172a" }}>My Quizzes</h2>
               <Btn onClick={() => openQuizModal()}>+ New Quiz</Btn>
             </div>
-            {myQuizzes.length === 0
+           {myQuizzes.length === 0
               ? <Card><p style={{ color: "#94a3b8", textAlign: "center" }}>No quizzes yet. Click "+ New Quiz".</p></Card>
               : <div style={{ display: "grid", gap: 14 }}>
-                {myQuizzes.map(q => {
+               {myQuizzes.map(q => {
                   const course   = db.courses.find(c => c.id === q.courseId);
                   const attempts = db.attempts.filter(a => a.quizId === q.id);
                   return (
@@ -872,15 +872,15 @@ const TeacherApp = ({ db, setDb, user, onLogout }) => {
                           <div style={{ fontWeight: 700, fontSize: 16, color: "#1e293b" }}>{q.title}</div>
                           <div style={{ fontSize: 13, color: "#64748b", marginTop: 2 }}>{q.description}</div>
                           <div style={{ fontSize: 12, color: "#94a3b8", marginTop: 8, display: "flex", gap: 12, alignItems: "center" }}>
-                            <span>ðŸ“š {course?.name}</span>
-                            <span>â“ {q.questions.length} questions</span>
-                            <span>ðŸŽ¯ {attempts.length} attempts</span>
+                            <span> {course?.name}</span>
+                            <span> {q.questions.length} questions</span>
+                            <span> {attempts.length} attempts</span>
                             <span style={{ background: "#f1f5f9", border: "1px solid #e2e8f0", borderRadius: 6, padding: "2px 8px", fontFamily: "monospace", fontWeight: 700, color: "#475569" }}>{q.joinCode}</span>
                           </div>
                         </div>
                         <div style={{ display: "flex", gap: 8 }}>
-                          <Btn size="sm" variant="purple"  onClick={() => setQrTarget({ title: q.title, code: q.joinCode, description: `Share this QR so students can directly access "${q.title}"` })}>ðŸ“± QR</Btn>
-                          <Btn size="sm" variant="outline" onClick={() => openEditor(q)}>âœï¸ Questions</Btn>
+                          <Btn size="sm" variant="purple"  onClick={() => setQrTarget({ title: q.title, code: q.joinCode, description: `Share this QR so students can directly access "${q.title}"` })}> QR</Btn>
+                          <Btn size="sm" variant="outline" onClick={() => openEditor(q)}> Questions</Btn>
                           <Btn size="sm" variant="ghost"   onClick={() => openQuizModal(q)}>Edit</Btn>
                           <Btn size="sm" variant="danger"  onClick={() => deleteQuiz(q.id)}>Delete</Btn>
                         </div>
@@ -893,49 +893,49 @@ const TeacherApp = ({ db, setDb, user, onLogout }) => {
           </>
         )}
 
-        {tab === "editor" && currentQuiz && (
+       {tab === "editor" && currentQuiz && (
           <>
-            <button onClick={() => { setTab("quizzes"); setEditingQuiz(null); }} style={{ background: "none", border: "none", color: "#2563eb", cursor: "pointer", fontWeight: 600, padding: 0, fontSize: 14, marginBottom: 12 }}>â† Back to Quizzes</button>
+            <button onClick={() => { setTab("quizzes"); setEditingQuiz(null); }} style={{ background: "none", border: "none", color: "#2563eb", cursor: "pointer", fontWeight: 600, padding: 0, fontSize: 14, marginBottom: 12 }}> Back to Quizzes</button>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 24 }}>
               <div>
-                <h2 style={{ margin: "0 0 4px", fontWeight: 800, fontSize: 24, color: "#0f172a" }}>âœï¸ {currentQuiz.title}</h2>
+                <h2 style={{ margin: "0 0 4px", fontWeight: 800, fontSize: 24, color: "#0f172a" }}> {currentQuiz.title}</h2>
                 <p style={{ margin: 0, color: "#64748b", fontSize: 14 }}>{currentQuiz.questions.length} question{currentQuiz.questions.length !== 1 ? "s" : ""} added</p>
               </div>
-              <Btn variant="purple" size="sm" onClick={() => setQrTarget({ title: currentQuiz.title, code: currentQuiz.joinCode, description: `Share this QR so students can directly access "${currentQuiz.title}"` })}>ðŸ“± QR Code</Btn>
+              <Btn variant="purple" size="sm" onClick={() => setQrTarget({ title: currentQuiz.title, code: currentQuiz.joinCode, description: `Share this QR so students can directly access "${currentQuiz.title}"` })}> QR Code</Btn>
             </div>
 
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24 }}>
               <Card>
                 <h3 style={{ margin: "0 0 16px", fontWeight: 700, fontSize: 15 }}>Add New Question</h3>
                 <Textarea label="Question Text" value={questionForm.text} onChange={e => setQuestionForm({ ...questionForm, text: e.target.value })} placeholder="Enter your question..." />
-                {[0,1,2,3].map(i => (
+               {[0,1,2,3].map(i => (
                   <div key={i} style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
                     <input type="radio" name="correct" checked={questionForm.correctAnswer === i} onChange={() => setQuestionForm({ ...questionForm, correctAnswer: i })} style={{ accentColor: "#059669", width: 16, height: 16 }} />
                     <input value={questionForm.options[i]} onChange={e => { const opts = [...questionForm.options]; opts[i] = e.target.value; setQuestionForm({ ...questionForm, options: opts }); }} placeholder={`Option ${String.fromCharCode(65+i)}`}
                       style={{ flex: 1, padding: "7px 10px", border: "1.5px solid #d1d5db", borderRadius: 8, fontSize: 13, fontFamily: "inherit" }} />
                   </div>
                 ))}
-                <p style={{ fontSize: 12, color: "#059669", margin: "0 0 12px" }}>â— Select radio = correct answer</p>
-                {err && <p style={{ color: "#dc2626", fontSize: 13, margin: "0 0 10px" }}>{err}</p>}
+                <p style={{ fontSize: 12, color: "#059669", margin: "0 0 12px" }}> Select radio = correct answer</p>
+               {err && <p style={{ color: "#dc2626", fontSize: 13, margin: "0 0 10px" }}>{err}</p>}
                 <Btn onClick={addQuestion} variant="success">+ Add Question</Btn>
               </Card>
 
               <div>
                 <h3 style={{ margin: "0 0 16px", fontWeight: 700, fontSize: 15 }}>Questions ({currentQuiz.questions.length})</h3>
-                {currentQuiz.questions.length === 0
+               {currentQuiz.questions.length === 0
                   ? <Card><p style={{ color: "#94a3b8", textAlign: "center", margin: 0 }}>No questions yet.</p></Card>
                   : currentQuiz.questions.map((q, i) => (
                     <Card key={q.id} style={{ marginBottom: 12, padding: "14px 16px" }}>
                       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
                         <div style={{ flex: 1 }}>
                           <div style={{ fontWeight: 700, fontSize: 14, color: "#1e293b", marginBottom: 8 }}>Q{i+1}. {q.text}</div>
-                          {q.options.map((opt, oi) => (
+                         {q.options.map((opt, oi) => (
                             <div key={oi} style={{ fontSize: 13, padding: "4px 8px", borderRadius: 6, marginBottom: 4, background: oi === q.correctAnswer ? "#d1fae5" : "#f8fafc", color: oi === q.correctAnswer ? "#065f46" : "#475569", fontWeight: oi === q.correctAnswer ? 700 : 400 }}>
-                              {oi === q.correctAnswer ? "âœ“ " : `${String.fromCharCode(65+oi)}. `}{opt}
+                             {oi === q.correctAnswer ? " " : `${String.fromCharCode(65+oi)}. `}{opt}
                             </div>
                           ))}
                         </div>
-                        <Btn size="sm" variant="danger" onClick={() => deleteQuestion(q.id)} style={{ marginLeft: 8 }}>Ã—</Btn>
+                        <Btn size="sm" variant="danger" onClick={() => deleteQuestion(q.id)} style={{ marginLeft: 8 }}></Btn>
                       </div>
                     </Card>
                   ))
@@ -945,18 +945,18 @@ const TeacherApp = ({ db, setDb, user, onLogout }) => {
           </>
         )}
 
-        {/* â”€â”€ Results Tab â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
-        {tab === "results" && (
+       {/*  Results Tab  */}
+       {tab === "results" && (
           <>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24 }}>
-              <h2 style={{ margin: 0, fontWeight: 800, fontSize: 26, color: "#0f172a" }}>ðŸ“Š Student Results</h2>
-              <Btn variant="success" onClick={exportResults}>â¬‡ Export CSV</Btn>
+              <h2 style={{ margin: 0, fontWeight: 800, fontSize: 26, color: "#0f172a" }}> Student Results</h2>
+              <Btn variant="success" onClick={exportResults}> Export CSV</Btn>
             </div>
 
-            {/* Summary cards per quiz */}
-            {quizSummaries.length > 0 && (
+           {/* Summary cards per quiz */}
+           {quizSummaries.length > 0 && (
               <div style={{ display: "flex", gap: 14, flexWrap: "wrap", marginBottom: 28 }}>
-                {quizSummaries.map(({ quiz, attempts, avg }) => (
+               {quizSummaries.map(({ quiz, attempts, avg }) => (
                   <div
                     key={quiz.id}
                     onClick={() => setSelectedQuizId(selectedQuizId === quiz.id ? "all" : quiz.id)}
@@ -964,10 +964,10 @@ const TeacherApp = ({ db, setDb, user, onLogout }) => {
                   >
                     <div style={{ fontSize: 13, fontWeight: 700, color: "#1e293b", marginBottom: 4, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{quiz.title}</div>
                     <div style={{ fontSize: 22, fontWeight: 800, color: "#2563eb", lineHeight: 1 }}>{attempts.length}</div>
-                    <div style={{ fontSize: 12, color: "#64748b", marginTop: 2 }}>attempt{attempts.length !== 1 ? "s" : ""}{avg !== null ? ` Â· Avg ${avg}%` : ""}</div>
+                    <div style={{ fontSize: 12, color: "#64748b", marginTop: 2 }}>attempt{attempts.length !== 1 ? "s" : ""}{avg !== null ? `  Avg ${avg}%` : ""}</div>
                   </div>
                 ))}
-                {selectedQuizId !== "all" && (
+               {selectedQuizId !== "all" && (
                   <div onClick={() => setSelectedQuizId("all")} style={{ flex: "0 0 auto", display: "flex", alignItems: "center", padding: "0 16px", background: "#f1f5f9", border: "1.5px solid #e2e8f0", borderRadius: 12, cursor: "pointer", fontSize: 13, fontWeight: 600, color: "#475569" }}>
                     Show All
                   </div>
@@ -975,7 +975,7 @@ const TeacherApp = ({ db, setDb, user, onLogout }) => {
               </div>
             )}
 
-            {/* Filter bar */}
+           {/* Filter bar */}
             <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 16 }}>
               <label style={{ fontSize: 13, fontWeight: 600, color: "#374151" }}>Filter by quiz:</label>
               <select
@@ -984,31 +984,31 @@ const TeacherApp = ({ db, setDb, user, onLogout }) => {
                 style={{ padding: "7px 12px", borderRadius: 8, border: "1.5px solid #d1d5db", fontSize: 13, fontFamily: "inherit", background: "#fff" }}
               >
                 <option value="all">All Quizzes ({teacherAttempts.length} attempts)</option>
-                {myQuizzes.map(q => {
+               {myQuizzes.map(q => {
                   const cnt = teacherAttempts.filter(a => a.quizId === q.id).length;
                   return <option key={q.id} value={q.id}>{q.title} ({cnt})</option>;
                 })}
               </select>
               <span style={{ marginLeft: "auto", fontSize: 13, color: "#64748b" }}>
-                {filteredAttempts.length} result{filteredAttempts.length !== 1 ? "s" : ""}
+               {filteredAttempts.length} result{filteredAttempts.length !== 1 ? "s" : ""}
               </span>
             </div>
 
-            {/* Results table */}
-            {filteredAttempts.length === 0 ? (
+           {/* Results table */}
+           {filteredAttempts.length === 0 ? (
               <Card><p style={{ color: "#94a3b8", textAlign: "center", margin: 0 }}>No attempts recorded yet.</p></Card>
             ) : (
               <Card style={{ padding: 0, overflow: "hidden" }}>
                 <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
                   <thead>
                     <tr style={{ background: "#f8fafc", borderBottom: "1.5px solid #e2e8f0" }}>
-                      {["#", "Name", "USN", "Quiz", "Course", "Score", "Score %"].map(h => (
+                     {["#", "Name", "USN", "Quiz", "Course", "Score", "Score %"].map(h => (
                         <th key={h} style={{ padding: "11px 14px", textAlign: "left", fontWeight: 700, fontSize: 12, color: "#64748b", textTransform: "uppercase", letterSpacing: 0.5, whiteSpace: "nowrap" }}>{h}</th>
                       ))}
                     </tr>
                   </thead>
                   <tbody>
-                    {filteredAttempts.map((a, i) => {
+                   {filteredAttempts.map((a, i) => {
                       const quiz   = db.quizzes.find(q => q.id === a.quizId);
                       const course = db.courses.find(c => c.id === quiz?.courseId);
                       const pct    = getScorePercent(a);
@@ -1016,12 +1016,12 @@ const TeacherApp = ({ db, setDb, user, onLogout }) => {
                       return (
                         <tr key={a.id} style={{ borderBottom: "1px solid #f1f5f9", background: i % 2 === 0 ? "#fff" : "#fafafa" }}>
                           <td style={{ padding: "11px 14px", color: "#94a3b8", fontSize: 12 }}>{i + 1}</td>
-                          <td style={{ padding: "11px 14px", fontWeight: 600, color: "#1e293b" }}>{a.studentName || "â€”"}</td>
-                          <td style={{ padding: "11px 14px", fontFamily: "monospace", fontSize: 13, color: "#475569" }}>{a.studentUSN || "â€”"}</td>
-                          <td style={{ padding: "11px 14px", color: "#1e293b" }}>{quiz?.title || "â€”"}</td>
-                          <td style={{ padding: "11px 14px", color: "#64748b", fontSize: 13 }}>{course?.name || "â€”"}</td>
+                          <td style={{ padding: "11px 14px", fontWeight: 600, color: "#1e293b" }}>{a.studentName || ""}</td>
+                          <td style={{ padding: "11px 14px", fontFamily: "monospace", fontSize: 13, color: "#475569" }}>{a.studentUSN || ""}</td>
+                          <td style={{ padding: "11px 14px", color: "#1e293b" }}>{quiz?.title || ""}</td>
+                          <td style={{ padding: "11px 14px", color: "#64748b", fontSize: 13 }}>{course?.name || ""}</td>
                           <td style={{ padding: "11px 14px", fontWeight: 700, color: "#1e293b" }}>
-                            {typeof a.score === "number" ? a.score : parseInt(a.score, 10)} / {quiz?.questions?.length ?? "?"}
+                           {typeof a.score === "number" ? a.score : parseInt(a.score, 10)} / {quiz?.questions?.length ?? "?"}
                           </td>
                           <td style={{ padding: "11px 14px" }}>
                             <span style={{ background: bg, color, borderRadius: 20, padding: "3px 10px", fontSize: 12, fontWeight: 700 }}>{pct}%</span>
@@ -1032,8 +1032,8 @@ const TeacherApp = ({ db, setDb, user, onLogout }) => {
                   </tbody>
                 </table>
 
-                {/* Footer summary */}
-                {filteredAttempts.length > 0 && (() => {
+               {/* Footer summary */}
+               {filteredAttempts.length > 0 && (() => {
                   const avg = Math.round(filteredAttempts.reduce((s, a) => s + getScorePercent(a), 0) / filteredAttempts.length);
                   const high = Math.max(...filteredAttempts.map(a => getScorePercent(a)));
                   const low  = Math.min(...filteredAttempts.map(a => getScorePercent(a)));
@@ -1053,23 +1053,23 @@ const TeacherApp = ({ db, setDb, user, onLogout }) => {
 
       </main>
 
-      {modal === "course" && (
+     {modal === "course" && (
         <Modal title={form.id ? "Edit Course" : "New Course"} onClose={() => setModal(null)}>
           <Input label="Course Name" value={form.name || ""} onChange={e => setForm({ ...form, name: e.target.value })} />
           <Textarea label="Description" value={form.description || ""} onChange={e => setForm({ ...form, description: e.target.value })} />
-          {err && <p style={{ color: "#dc2626", fontSize: 13 }}>{err}</p>}
+         {err && <p style={{ color: "#dc2626", fontSize: 13 }}>{err}</p>}
           <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
             <Btn variant="ghost" onClick={() => setModal(null)}>Cancel</Btn>
             <Btn onClick={saveCourse}>{form.id ? "Save" : "Create Course"}</Btn>
           </div>
         </Modal>
       )}
-      {modal === "quiz" && (
+     {modal === "quiz" && (
         <Modal title={form.id ? "Edit Quiz" : "New Quiz"} onClose={() => setModal(null)}>
           <Input    label="Quiz Title"   value={form.title       || ""} onChange={e => setForm({ ...form, title:       e.target.value })} />
           <Textarea label="Description"  value={form.description || ""} onChange={e => setForm({ ...form, description: e.target.value })} />
           <Select   label="Course"       value={form.courseId    || ""} onChange={e => setForm({ ...form, courseId:    e.target.value })} options={myCourses.map(c => ({ value: c.id, label: c.name }))} />
-          {err && <p style={{ color: "#dc2626", fontSize: 13 }}>{err}</p>}
+         {err && <p style={{ color: "#dc2626", fontSize: 13 }}>{err}</p>}
           <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
             <Btn variant="ghost" onClick={() => setModal(null)}>Cancel</Btn>
             <Btn onClick={saveQuiz}>{form.id ? "Save" : "Create Quiz"}</Btn>
@@ -1077,12 +1077,12 @@ const TeacherApp = ({ db, setDb, user, onLogout }) => {
         </Modal>
       )}
 
-      {qrTarget && <QRModal title={qrTarget.title} code={qrTarget.code} description={qrTarget.description} onClose={() => setQrTarget(null)} />}
+     {qrTarget && <QRModal title={qrTarget.title} code={qrTarget.code} description={qrTarget.description} onClose={() => setQrTarget(null)} />}
     </div>
   );
 };
 
-// â”€â”€â”€ STUDENT MODULE â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+//  STUDENT MODULE 
 const StudentApp = ({ db, setDb, user, onLogout }) => {
   const [tab, setTab]             = useState("join");
   const [codeInput, setCodeInput] = useState("");
@@ -1102,7 +1102,7 @@ const StudentApp = ({ db, setDb, user, onLogout }) => {
   const myCourseIds   = myEnrollments.map(e => e.courseId);
   const myAttempts    = db.attempts.filter(a => a.studentId === user.id);
 
-  // â”€â”€ Read QR code from URL once on mount only â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  //  Read QR code from URL once on mount only 
 useEffect(() => {
   const params = new URLSearchParams(window.location.search);
   const code = params.get("code");
@@ -1123,15 +1123,15 @@ useEffect(() => {
     setShowRegistration(true);
   }
 
-}, [db.quizzes]);// â† empty: run once on mount only
+}, [db.quizzes]);//  empty: run once on mount only
 
   const tabs = [
-    { id: "join",      label: "Join via Code", icon: "ðŸ“±" },
-    { id: "mycourses", label: "My Courses",     icon: "ðŸ“š" },
-    { id: "myresults", label: "My Results",     icon: "ðŸ†" },
+   { id: "join",      label: "Join via Code", icon: "" },
+   { id: "mycourses", label: "My Courses",     icon: "" },
+   { id: "myresults", label: "My Results",     icon: "" },
   ];
 
-  // â”€â”€ Join via code â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  //  Join via code 
   const handleJoin = async () => {
     const code = codeInput.trim().toUpperCase();
     if (!code) { setCodeError("Please enter a code."); return; }
@@ -1174,7 +1174,7 @@ useEffect(() => {
     setCodeError("Invalid code.");
   };
 
-  // â”€â”€ Launch quiz (after registration) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  //  Launch quiz (after registration) 
   const launchQuiz = (quiz) => {
     const alreadyAttempted = db.attempts.find(
       a => a.studentId === user.id && a.quizId === quiz.id
@@ -1189,15 +1189,15 @@ useEffect(() => {
     setResult(null);
   };
 
-  // â”€â”€ Registration screen handler â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  //  Registration screen handler 
   const startRegisteredQuiz = () => {
     if (!studentName.trim()) { alert("Please enter your name."); return; }
-    if (!studentUSN.trim())  { alert("Please enter your USN.");  return; }
+    if (!studentUSN.trim()) { alert("Please enter your USN.");  return; }
     setShowRegistration(false);
     launchQuiz(pendingQuiz);
   };
 
-  // â”€â”€ Open registration before launching from course view â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  //  Open registration before launching from course view 
   const openRegistrationFor = (quiz) => {
     const alreadyAttempted = db.attempts.find(
       a => a.studentId === user.id && a.quizId === quiz.id
@@ -1210,7 +1210,7 @@ useEffect(() => {
     setShowRegistration(true);
   };
 
-  // â”€â”€ Submit quiz â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  //  Submit quiz 
   const submitQuiz = async () => {
     if (Object.keys(answers).length < activeQuiz.questions.length) {
       alert("Please answer all questions before submitting.");
@@ -1244,7 +1244,7 @@ useEffect(() => {
     }
   };
 
-  // â”€â”€ Registration screen â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  //  Registration screen 
   if (showRegistration) {
     return (
       <div style={{ minHeight: "100vh", display: "flex", justifyContent: "center", alignItems: "center", background: "#f8fafc" }}>
@@ -1269,14 +1269,14 @@ useEffect(() => {
             <Btn variant="ghost" onClick={() => { setShowRegistration(false); setPendingQuiz(null); }}>
               Cancel
             </Btn>
-            <Btn onClick={startRegisteredQuiz}>Start Quiz â†’</Btn>
+            <Btn onClick={startRegisteredQuiz}>Start Quiz </Btn>
           </div>
         </Card>
       </div>
     );
   }
 
-  // â”€â”€ Quiz taking / results screen â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  //  Quiz taking / results screen 
   if (activeQuiz) {
     const pct        = submitted ? Math.round((result.score / result.total) * 100) : 0;
     const grade      = pct >= 90 ? "A" : pct >= 75 ? "B" : pct >= 60 ? "C" : pct >= 50 ? "D" : "F";
@@ -1285,8 +1285,8 @@ useEffect(() => {
     return (
       <div style={{ minHeight: "100vh", background: "#f8fafc" }}>
         <div style={{ background: "#0f172a", padding: "16px 32px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <div style={{ color: "#fff", fontWeight: 800, fontSize: 18 }}>ðŸ“‹ Quizly â€” {activeQuiz.title}</div>
-          {!submitted && (
+          <div style={{ color: "#fff", fontWeight: 800, fontSize: 18 }}> Quizly {activeQuiz.title}</div>
+         {!submitted && (
             <button onClick={() => setActiveQuiz(null)} style={{ background: "none", border: "1px solid #475569", color: "#94a3b8", padding: "6px 14px", borderRadius: 8, cursor: "pointer", fontFamily: "inherit" }}>
               Exit Quiz
             </button>
@@ -1294,24 +1294,24 @@ useEffect(() => {
         </div>
 
         <div style={{ maxWidth: 760, margin: "40px auto", padding: "0 20px" }}>
-          {!submitted ? (
+         {!submitted ? (
             <>
               <div style={{ marginBottom: 28 }}>
                 <h2 style={{ margin: "0 0 6px", fontWeight: 800, fontSize: 24, color: "#0f172a" }}>{activeQuiz.title}</h2>
-                <p style={{ margin: "0 0 12px", color: "#64748b" }}>{activeQuiz.description} Â· {activeQuiz.questions.length} questions</p>
+                <p style={{ margin: "0 0 12px", color: "#64748b" }}>{activeQuiz.description} {activeQuiz.questions.length} questions</p>
                 <div style={{ background: "#e2e8f0", borderRadius: 20, height: 6 }}>
                   <div style={{ height: 6, borderRadius: 20, background: "#1e40af", width: `${(Object.keys(answers).length / activeQuiz.questions.length) * 100}%`, transition: "width .3s" }} />
                 </div>
                 <p style={{ margin: "6px 0 0", fontSize: 13, color: "#64748b" }}>{Object.keys(answers).length} / {activeQuiz.questions.length} answered</p>
               </div>
 
-              {activeQuiz.questions.map((q, qi) => (
+             {activeQuiz.questions.map((q, qi) => (
                 <Card key={q.id} style={{ marginBottom: 16, border: answers[qi] !== undefined ? "2px solid #bfdbfe" : "1.5px solid #e2e8f0" }}>
                   <div style={{ fontWeight: 700, marginBottom: 14, color: "#1e293b" }}>
                     <span style={{ color: "#2563eb", marginRight: 8 }}>Q{qi + 1}.</span>{q.text}
                   </div>
                   <div style={{ display: "grid", gap: 8 }}>
-                    {q.options.map((opt, oi) => (
+                   {q.options.map((opt, oi) => (
                       <label key={oi} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 14px", borderRadius: 8, cursor: "pointer", background: answers[qi] === oi ? "#eff6ff" : "#f8fafc", border: answers[qi] === oi ? "2px solid #2563eb" : "1.5px solid #e2e8f0", transition: "all .15s" }}>
                         <input type="radio" name={`q${qi}`} checked={answers[qi] === oi} onChange={() => setAnswers({ ...answers, [qi]: oi })} style={{ accentColor: "#2563eb" }} />
                         <span style={{ fontWeight: answers[qi] === oi ? 600 : 400, fontSize: 14 }}>{String.fromCharCode(65 + oi)}. {opt}</span>
@@ -1322,7 +1322,7 @@ useEffect(() => {
               ))}
 
               <div style={{ textAlign: "center", marginTop: 32 }}>
-                <Btn size="lg" variant="success" onClick={submitQuiz}>Submit Quiz âœ“</Btn>
+                <Btn size="lg" variant="success" onClick={submitQuiz}>Submit Quiz </Btn>
               </div>
             </>
           ) : (
@@ -1336,28 +1336,28 @@ useEffect(() => {
                   You scored <strong>{result.score}</strong> out of <strong>{result.total}</strong>
                 </p>
                 <p style={{ margin: "0 0 24px", fontSize: 14, color: "#64748b" }}>
-                  {pct === 100 ? "ðŸŽ‰ Perfect!" : pct >= 75 ? "Great job!" : pct >= 50 ? "Keep practicing!" : "Better luck next time."}
+                 {pct === 100 ? " Perfect!" : pct >= 75 ? "Great job!" : pct >= 50 ? "Keep practicing!" : "Better luck next time."}
                 </p>
                 <Btn onClick={() => setActiveQuiz(null)} variant="outline">Back to My Courses</Btn>
               </Card>
 
               <h3 style={{ fontWeight: 800, fontSize: 18, marginBottom: 16 }}>Answer Review</h3>
-              {activeQuiz.questions.map((q, qi) => {
+             {activeQuiz.questions.map((q, qi) => {
                 const correct = answers[qi] === q.correctAnswer;
                 return (
                   <Card key={q.id} style={{ marginBottom: 12, border: `2px solid ${correct ? "#bbf7d0" : "#fecaca"}` }}>
                     <div style={{ display: "flex", gap: 10, marginBottom: 10 }}>
-                      <span style={{ fontSize: 18 }}>{correct ? "âœ…" : "âŒ"}</span>
+                      <span style={{ fontSize: 18 }}>{correct ? "" : ""}</span>
                       <span style={{ fontWeight: 700, color: "#1e293b" }}>Q{qi + 1}. {q.text}</span>
                     </div>
                     <div style={{ paddingLeft: 28, display: "grid", gap: 6 }}>
-                      {q.options.map((opt, oi) => {
+                     {q.options.map((opt, oi) => {
                         const isCorrect  = oi === q.correctAnswer;
                         const isSelected = oi === answers[qi];
                         return (
                           <div key={oi} style={{ fontSize: 13, padding: "5px 10px", borderRadius: 6, background: isCorrect ? "#d1fae5" : isSelected ? "#fee2e2" : "#f8fafc", color: isCorrect ? "#065f46" : isSelected ? "#991b1b" : "#64748b", fontWeight: isCorrect || isSelected ? 600 : 400 }}>
-                            {isCorrect ? "âœ“ " : isSelected ? "âœ— " : `${String.fromCharCode(65 + oi)}. `}{opt}
-                            {isCorrect && <span style={{ marginLeft: 8, fontSize: 11 }}>(Correct Answer)</span>}
+                           {isCorrect ? " " : isSelected ? " " : `${String.fromCharCode(65 + oi)}. `}{opt}
+                           {isCorrect && <span style={{ marginLeft: 8, fontSize: 11 }}>(Correct Answer)</span>}
                           </div>
                         );
                       })}
@@ -1372,20 +1372,20 @@ useEffect(() => {
     );
   }
 
-  // â”€â”€ Main student dashboard â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  //  Main student dashboard 
   return (
     <div style={{ display: "flex" }}>
       <Sidebar user={user} activeTab={tab} setTab={t => { setTab(t); setSelectedCourse(null); }} tabs={tabs} onLogout={onLogout} />
       <main style={{ flex: 1, padding: 32, background: "#f8fafc", minHeight: "100vh" }}>
 
-        {/* â”€â”€ JOIN TAB â”€â”€ */}
-        {tab === "join" && (
+       {/*  JOIN TAB  */}
+       {tab === "join" && (
           <div style={{ maxWidth: 520, margin: "0 auto" }}>
             <h2 style={{ margin: "0 0 6px", fontWeight: 800, fontSize: 26, color: "#0f172a" }}>Join via QR Code</h2>
             <p style={{ margin: "0 0 32px", color: "#64748b" }}>Scan the QR code shared by your teacher, or enter the code manually below.</p>
 
             <Card style={{ textAlign: "center", marginBottom: 28, padding: 36, background: "linear-gradient(135deg,#0f172a,#1e3a5f)", border: "none" }}>
-              <div style={{ fontSize: 64, marginBottom: 12 }}>ðŸ“±</div>
+              <div style={{ fontSize: 64, marginBottom: 12 }}></div>
               <div style={{ color: "#94a3b8", fontSize: 14, marginBottom: 6 }}>Point your camera at the QR code</div>
               <div style={{ color: "#64748b", fontSize: 12 }}>or enter the code below</div>
             </Card>
@@ -1400,9 +1400,9 @@ useEffect(() => {
                   placeholder="e.g. CRS-MATH1 or QZ-ALG01"
                   style={{ flex: 1, padding: "11px 14px", borderRadius: 8, border: codeError ? "2px solid #dc2626" : "1.5px solid #d1d5db", fontSize: 15, fontFamily: "monospace", fontWeight: 700, letterSpacing: 1, textTransform: "uppercase", outline: "none" }}
                 />
-                <Btn size="md" onClick={handleJoin}>Join â†’</Btn>
+                <Btn size="md" onClick={handleJoin}>Join </Btn>
               </div>
-              {codeError && <p style={{ color: "#dc2626", fontSize: 13, margin: "10px 0 0" }}>âš  {codeError}</p>}
+             {codeError && <p style={{ color: "#dc2626", fontSize: 13, margin: "10px 0 0" }}> {codeError}</p>}
               <p style={{ fontSize: 12, color: "#94a3b8", margin: "14px 0 0" }}>
                 Use a <strong>CRS-XXXXX</strong> code to join a full course, or a <strong>QZ-XXXXX</strong> code to directly attempt a quiz.
               </p>
@@ -1410,16 +1410,16 @@ useEffect(() => {
               <div style={{ marginTop: 20, padding: 14, background: "#f1f5f9", borderRadius: 10, border: "1px solid #e2e8f0" }}>
                 <div style={{ fontSize: 12, fontWeight: 700, color: "#475569", marginBottom: 10, textTransform: "uppercase", letterSpacing: 0.5 }}>Demo Codes to Try</div>
                 <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-                  {[
-                    { code: "CRS-MATH1", label: "Mathematics 101" },
-                    { code: "CRS-PHYS2", label: "Physics" },
-                    { code: "CRS-DATA3", label: "Data Structures" },
-                    { code: "QZ-ALG01",  label: "Algebra Quiz" },
-                    { code: "QZ-NEW02",  label: "Newton's Quiz" },
+                 {[
+                   { code: "CRS-MATH1", label: "Mathematics 101" },
+                   { code: "CRS-PHYS2", label: "Physics" },
+                   { code: "CRS-DATA3", label: "Data Structures" },
+                   { code: "QZ-ALG01",  label: "Algebra Quiz" },
+                   { code: "QZ-NEW02",  label: "Newton's Quiz" },
                   ].map(d => (
                     <button key={d.code} onClick={() => { setCodeInput(d.code); setCodeError(""); }}
                       style={{ background: "#fff", border: "1.5px solid #e2e8f0", borderRadius: 8, padding: "5px 10px", cursor: "pointer", fontFamily: "monospace", fontWeight: 700, fontSize: 12, color: "#1e293b" }}>
-                      {d.code}
+                     {d.code}
                     </button>
                   ))}
                 </div>
@@ -1428,30 +1428,30 @@ useEffect(() => {
           </div>
         )}
 
-        {/* â”€â”€ MY COURSES TAB â€” course list â”€â”€ */}
-        {tab === "mycourses" && !selectedCourse && (
+       {/*  MY COURSES TAB  course list  */}
+       {tab === "mycourses" && !selectedCourse && (
           <>
             <h2 style={{ margin: "0 0 6px", fontWeight: 800, fontSize: 26, color: "#0f172a" }}>My Courses</h2>
             <p style={{ margin: "0 0 24px", color: "#64748b" }}>Courses you have joined. Click a course to take its quizzes.</p>
-            {myCourseIds.length === 0 ? (
+           {myCourseIds.length === 0 ? (
               <Card style={{ textAlign: "center", padding: 48 }}>
-                <div style={{ fontSize: 48, marginBottom: 16 }}>ðŸ“±</div>
+                <div style={{ fontSize: 48, marginBottom: 16 }}></div>
                 <div style={{ fontWeight: 700, fontSize: 16, color: "#1e293b", marginBottom: 8 }}>No courses joined yet</div>
                 <div style={{ color: "#64748b", marginBottom: 20 }}>Scan a QR code or enter a course code from your teacher.</div>
-                <Btn onClick={() => setTab("join")}>Join a Course â†’</Btn>
+                <Btn onClick={() => setTab("join")}>Join a Course </Btn>
               </Card>
             ) : (
               <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px,1fr))", gap: 16 }}>
-                {db.courses.filter(c => myCourseIds.includes(c.id)).map(c => {
+               {db.courses.filter(c => myCourseIds.includes(c.id)).map(c => {
                   const teacher = db.users.find(u => u.id === c.teacherId);
                   const qCount  = db.quizzes.filter(q => q.courseId === c.id).length;
                   const done    = myAttempts.filter(a => db.quizzes.find(q => q.id === a.quizId && q.courseId === c.id)).length;
                   return (
                     <Card key={c.id} style={{ cursor: "pointer" }} onClick={() => setSelectedCourse(c)}>
-                      <div style={{ width: 44, height: 44, borderRadius: 10, background: "#eff6ff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 24, marginBottom: 12 }}>ðŸ“š</div>
+                      <div style={{ width: 44, height: 44, borderRadius: 10, background: "#eff6ff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 24, marginBottom: 12 }}></div>
                       <div style={{ fontWeight: 700, fontSize: 16, color: "#1e293b", marginBottom: 4 }}>{c.name}</div>
                       <div style={{ fontSize: 13, color: "#64748b", marginBottom: 12 }}>{c.description}</div>
-                      <div style={{ fontSize: 12, color: "#94a3b8" }}>ðŸ‘¨â€ðŸ« {teacher?.name || "â€”"} Â· ðŸ“ {qCount} quiz{qCount !== 1 ? "zes" : ""} Â· âœ… {done} done</div>
+                      <div style={{ fontSize: 12, color: "#94a3b8" }}> {teacher?.name || ""}  {qCount} quiz{qCount !== 1 ? "zes" : ""}  {done} done</div>
                     </Card>
                   );
                 })}
@@ -1460,17 +1460,17 @@ useEffect(() => {
           </>
         )}
 
-        {/* â”€â”€ MY COURSES TAB â€” quiz list inside a course â”€â”€ */}
-        {tab === "mycourses" && selectedCourse && (
+       {/*  MY COURSES TAB  quiz list inside a course  */}
+       {tab === "mycourses" && selectedCourse && (
           <>
-            <button onClick={() => setSelectedCourse(null)} style={{ background: "none", border: "none", color: "#2563eb", cursor: "pointer", fontWeight: 600, padding: 0, fontSize: 14, marginBottom: 12 }}>â† Back to My Courses</button>
+            <button onClick={() => setSelectedCourse(null)} style={{ background: "none", border: "none", color: "#2563eb", cursor: "pointer", fontWeight: 600, padding: 0, fontSize: 14, marginBottom: 12 }}> Back to My Courses</button>
             <h2 style={{ margin: "0 0 4px", fontWeight: 800, fontSize: 24, color: "#0f172a" }}>{selectedCourse.name}</h2>
             <p style={{ margin: "0 0 24px", color: "#64748b" }}>{selectedCourse.description}</p>
-            {db.quizzes.filter(q => q.courseId === selectedCourse.id).length === 0
+           {db.quizzes.filter(q => q.courseId === selectedCourse.id).length === 0
               ? <Card><p style={{ color: "#94a3b8", textAlign: "center" }}>No quizzes available yet.</p></Card>
               : (
                 <div style={{ display: "grid", gap: 14 }}>
-                  {db.quizzes.filter(q => q.courseId === selectedCourse.id).map(q => {
+                 {db.quizzes.filter(q => q.courseId === selectedCourse.id).map(q => {
                     const attempt = [...myAttempts].reverse().find(a => a.quizId === q.id);
                     const score   = attempt ? (typeof attempt.score === "number" ? attempt.score : parseInt(attempt.score, 10)) : null;
                     const pct     = (attempt && score !== null) ? Math.round((score / q.questions.length) * 100) : null;
@@ -1480,19 +1480,19 @@ useEffect(() => {
                           <div style={{ fontWeight: 700, fontSize: 16, color: "#1e293b" }}>{q.title}</div>
                           <div style={{ fontSize: 13, color: "#64748b", marginTop: 2 }}>{q.description}</div>
                           <div style={{ fontSize: 12, color: "#94a3b8", marginTop: 6 }}>
-                            â“ {q.questions.length} questions
-                            {pct !== null && (
+                            {q.questions.length} questions
+                           {pct !== null && (
                               <span style={{ color: pct >= 75 ? "#059669" : "#d97706", fontWeight: 700, marginLeft: 8 }}>
-                                Â· Last: {pct}%
+                                 Last: {pct}%
                               </span>
                             )}
                           </div>
                         </div>
-                        {attempt ? (
-                          <Btn size="sm" disabled variant="outline">Completed âœ“</Btn>
+                       {attempt ? (
+                          <Btn size="sm" disabled variant="outline">Completed </Btn>
                         ) : (
-                          // â† goes through registration so name/USN are always captured
-                          <Btn size="sm" onClick={() => openRegistrationFor(q)}>Start Quiz â†’</Btn>
+                          //  goes through registration so name/USN are always captured
+                          <Btn size="sm" onClick={() => openRegistrationFor(q)}>Start Quiz </Btn>
                         )}
                       </Card>
                     );
@@ -1503,16 +1503,16 @@ useEffect(() => {
           </>
         )}
 
-        {/* â”€â”€ MY RESULTS TAB â”€â”€ */}
-        {tab === "myresults" && (
+       {/*  MY RESULTS TAB  */}
+       {tab === "myresults" && (
           <>
             <h2 style={{ margin: "0 0 6px", fontWeight: 800, fontSize: 26, color: "#0f172a" }}>My Results</h2>
             <p style={{ margin: "0 0 24px", color: "#64748b" }}>All your quiz attempts.</p>
-            {myAttempts.length === 0
+           {myAttempts.length === 0
               ? <Card><p style={{ color: "#94a3b8", textAlign: "center" }}>No attempts yet.</p></Card>
               : (
                 <div style={{ display: "grid", gap: 14 }}>
-                  {[...myAttempts].reverse().map(a => {
+                 {[...myAttempts].reverse().map(a => {
                     const quiz   = db.quizzes.find(q => q.id === a.quizId);
                     const course = quiz ? db.courses.find(c => c.id === quiz.courseId) : null;
                     const num    = typeof a.score === "number" ? a.score : parseInt(a.score, 10);
@@ -1523,15 +1523,15 @@ useEffect(() => {
                       <Card key={a.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                         <div>
                           <div style={{ fontWeight: 700, fontSize: 15, color: "#1e293b" }}>{quiz?.title || "Deleted Quiz"}</div>
-                          <div style={{ fontSize: 13, color: "#64748b" }}>ðŸ“š {course?.name || "â€”"}</div>
+                          <div style={{ fontSize: 13, color: "#64748b" }}> {course?.name || ""}</div>
                           <div style={{ fontSize: 12, color: "#94a3b8", marginTop: 4 }}>
-                            {a.completedAt ? new Date(a.completedAt).toLocaleString() : "â€”"}
+                           {a.completedAt ? new Date(a.completedAt).toLocaleString() : ""}
                           </div>
                         </div>
                         <div style={{ textAlign: "right" }}>
                           <div style={{ fontWeight: 900, fontSize: 28, color }}>{pct}%</div>
                           <div style={{ fontSize: 13, color: "#94a3b8" }}>
-                            {isNaN(num) ? "?" : num} / {total || "?"} correct
+                           {isNaN(num) ? "?" : num} / {total || "?"} correct
                           </div>
                         </div>
                       </Card>
@@ -1548,24 +1548,24 @@ useEffect(() => {
   );
 };
 
-// â”€â”€â”€ LOGIN PAGE â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+//  LOGIN PAGE 
 const LoginPage = ({ db, onLogin }) => {
   const [email, setEmail]       = useState("");
   const [password, setPassword] = useState("");
   const [err, setErr]           = useState("");
 
   const demos = [
-    { label: "Admin",                role: "admin"   },
-    { label: "Teacher (Dr. Sharma)", role: "teacher" },
-    { label: "Teacher (Prof. Mehta)",role: "teacher" },
-    { label: "Student (Priya)",      role: "student" },
-    { label: "Student (Arjun)",      role: "student" },
+   { label: "Admin",                role: "admin"   },
+   { label: "Teacher (Dr. Sharma)", role: "teacher" },
+   { label: "Teacher (Prof. Mehta)",role: "teacher" },
+   { label: "Student (Priya)",      role: "student" },
+   { label: "Student (Arjun)",      role: "student" },
   ];
 
-  // â”€â”€ Fix 1: handleLogin defined inside the component â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  //  Fix 1: handleLogin defined inside the component 
  
 
-  // â”€â”€ Fix 2: demo buttons auto-fill from db, not hardcoded â€” no email shown â”€
+  //  Fix 2: demo buttons auto-fill from db, not hardcoded  no email shown 
   const handleDemoClick = (label) => {
     const roleMap = {
       "Admin":                 "admin",
@@ -1642,14 +1642,14 @@ console.log("UID:", cred.user.uid);
   return (
     <div style={{ minHeight: "100vh", display: "flex", background: "#f1f5f9" }}>
 
-      {/* â”€â”€ Left panel â”€â”€ */}
+     {/*  Left panel  */}
       <div style={{ flex: 1, background: "#0f172a", display: "flex", flexDirection: "column", justifyContent: "center", padding: "60px", position: "relative", overflow: "hidden" }}>
         <div style={{ position: "absolute", inset: 0, backgroundImage: "radial-gradient(circle at 30% 50%, #1e40af22 0%, transparent 60%), radial-gradient(circle at 80% 20%, #7c3aed22 0%, transparent 50%)" }} />
         <div style={{ position: "relative", zIndex: 1 }}>
-          <div style={{ fontSize: 40, marginBottom: 16 }}>ðŸ“‹</div>
+          <div style={{ fontSize: 40, marginBottom: 16 }}></div>
           <h1 style={{ color: "#fff", fontWeight: 900, fontSize: 40, margin: "0 0 16px", letterSpacing: -1 }}>Quizly</h1>
           <p style={{ color: "#94a3b8", fontSize: 16, lineHeight: 1.6, maxWidth: 380, marginBottom: 48 }}>
-            QR-powered quiz platform. Teachers share QR codes â€” students scan to access only their assigned courses.
+            QR-powered quiz platform. Teachers share QR codes  students scan to access only their assigned courses.
           </p>
 
           <p style={{ color: "#64748b", fontSize: 12, marginBottom: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: 1 }}>
@@ -1657,7 +1657,7 @@ console.log("UID:", cred.user.uid);
           </p>
 
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-            {demos.map((d, i) => (
+           {demos.map((d, i) => (
               <button
                 key={i}
                 onClick={() => handleDemoClick(d.label)}
@@ -1665,7 +1665,7 @@ console.log("UID:", cred.user.uid);
                 onMouseEnter={e => e.currentTarget.style.borderColor = "#475569"}
                 onMouseLeave={e => e.currentTarget.style.borderColor = "#334155"}
               >
-                {/* â”€â”€ Fix 2: only label shown, no email or password â”€â”€ */}
+               {/*  Fix 2: only label shown, no email or password  */}
                 <span style={{ color: "#f1f5f9", fontWeight: 600, fontSize: 13 }}>{d.label}</span>
                 <Badge role={d.role} />
               </button>
@@ -1678,7 +1678,7 @@ console.log("UID:", cred.user.uid);
         </div>
       </div>
 
-      {/* â”€â”€ Right panel â”€â”€ */}
+     {/*  Right panel  */}
       <div style={{ width: 440, display: "flex", alignItems: "center", justifyContent: "center", padding: 40 }}>
         <div style={{ width: "100%" }}>
           <h2 style={{ fontWeight: 800, fontSize: 26, color: "#0f172a", margin: "0 0 6px" }}>Welcome back</h2>
@@ -1700,12 +1700,12 @@ console.log("UID:", cred.user.uid);
             onKeyDown={e => e.key === "Enter" && handleLogin()}
           />
 
-          {err && (
-            <p style={{ color: "#dc2626", fontSize: 13, margin: "-8px 0 12px" }}>âš  {err}</p>
+         {err && (
+            <p style={{ color: "#dc2626", fontSize: 13, margin: "-8px 0 12px" }}> {err}</p>
           )}
 
           <Btn size="lg" onClick={handleLogin} style={{ width: "100%", justifyContent: "center" }}>
-            Sign In â†’
+            Sign In 
           </Btn>
 
           <p style={{ color: "#94a3b8", fontSize: 12, marginTop: 24, textAlign: "center" }}>
@@ -1717,7 +1717,7 @@ console.log("UID:", cred.user.uid);
   );
 };
 
-// â”€â”€â”€ ROOT â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+//  ROOT 
 export default function App() {
 
   const [db, setDb] = useState({
@@ -1793,11 +1793,11 @@ export default function App() {
 
   const logout = () => setCurrentUser(null);
 
-  // â”€â”€ QR code from URL â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  //  QR code from URL 
   const params = new URLSearchParams(window.location.search);
   const qrCode = params.get("code");
 
-  // â”€â”€ Fix 3: guest gets a unique id per session, not "guest" â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  //  Fix 3: guest gets a unique id per session, not "guest" 
   if (!currentUser) {
     if (qrCode) {
       const quiz = db.quizzes.find(
@@ -1824,7 +1824,7 @@ export default function App() {
     return <LoginPage db={db} onLogin={setCurrentUser} />;
   }
 
-  // â”€â”€ Route by role â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  //  Route by role 
   if (currentUser.role === "admin") {
     return <AdminApp   db={db} setDb={setDb} user={currentUser} onLogout={logout} />;
   }
@@ -1833,5 +1833,6 @@ export default function App() {
   }
   return   <StudentApp db={db} setDb={setDb} user={currentUser} onLogout={logout} />;
 }
+
 
 
