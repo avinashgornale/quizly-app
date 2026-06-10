@@ -1,4 +1,6 @@
 import { useState, useEffect, useRef } from "react";
+import mammoth from "mammoth";
+import * as pdfjsLib from "pdfjs-dist";
 
 import { auth, firestore } from "./firebase";
 
@@ -24,6 +26,52 @@ import {
 
 const genId = () => Math.random().toString(36).substr(2, 9);
 const genCode = (prefix) => prefix + Math.random().toString(36).substr(2, 5).toUpperCase();
+pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
+  "pdfjs-dist/build/pdf.worker.min.mjs",
+  import.meta.url
+).toString();
+
+const escapeHtml = (value = "") => String(value)
+  .replace(/&/g, "&amp;")
+  .replace(/</g, "&lt;")
+  .replace(/>/g, "&gt;")
+  .replace(/"/g, "&quot;")
+  .replace(/'/g, "&#039;");
+
+const parseImportedQuestions = (rawText) => {
+  const text = rawText
+    .replace(/\r/g, "")
+    .replace(/\s+(?=Q(?:uestion)?\s*\d+\s*[.):\-])/gi, "\n")
+    .replace(/\s+(?=[A-D]\s*[.)\-:]\s+)/g, "\n")
+    .replace(/\s+(?=Answer\s*[:\-])/gi, "\n")
+    .trim();
+  const blocks = text.split(/(?=^\s*Q(?:uestion)?\s*\d+\s*[.):\-])/gmi).filter(Boolean);
+  const questions = [];
+  const errors = [];
+
+  blocks.forEach((block, index) => {
+    const lines = block.split("\n").map(line => line.trim()).filter(Boolean);
+    const questionLine = lines.shift() || "";
+    const questionText = questionLine.replace(/^\s*Q(?:uestion)?\s*\d+\s*[.):\-]\s*/i, "").trim();
+    const options = ["A", "B", "C", "D"].map(letter => {
+      const line = lines.find(item => new RegExp(`^${letter}\\s*[.)\\-:]\\s*`, "i").test(item));
+      return line ? line.replace(new RegExp(`^${letter}\\s*[.)\\-:]\\s*`, "i"), "").trim() : "";
+    });
+    const answerLine = lines.find(line => /^answer\s*[:\-]/i.test(line));
+    const answerLetter = answerLine?.replace(/^answer\s*[:\-]\s*/i, "").trim().charAt(0).toUpperCase();
+    const correctAnswer = ["A", "B", "C", "D"].indexOf(answerLetter);
+
+    if (!questionText || options.some(option => !option) || correctAnswer < 0) {
+      errors.push(`Question ${index + 1}: expected question text, options A-D, and "Answer: A/B/C/D".`);
+      return;
+    }
+
+    questions.push({ id: genId(), text: questionText, options, correctAnswer });
+  });
+
+  if (!blocks.length) errors.push("No questions were detected.");
+  return { questions, errors };
+};
 
 
 
@@ -603,8 +651,13 @@ const TeacherApp = ({ db, setDb, user, onLogout }) => {
   const [err, setErr]           = useState("");
   const [editingQuiz, setEditingQuiz] = useState(null);
   const [questionForm, setQuestionForm] = useState({ text: "", options: ["", "", "", ""], correctAnswer: 0 });
+  const [editingQuestionId, setEditingQuestionId] = useState(null);
+  const [importPreview, setImportPreview] = useState([]);
+  const [importErrors, setImportErrors] = useState([]);
+  const [importing, setImporting] = useState(false);
   const [qrTarget, setQrTarget] = useState(null);
   const [selectedQuizId, setSelectedQuizId] = useState("all");
+  const [resultSort, setResultSort] = useState("latest");
 
   const myCourses   = db.courses.filter(c => c.teacherId === user.id);
   const myCourseIds = myCourses.map(c => c.id);
@@ -637,6 +690,8 @@ const TeacherApp = ({ db, setDb, user, onLogout }) => {
         teacherId: user.id,
         joinCode: form.joinCode || genCode("QZ-"),
         questions: form.questions || [],
+        durationMinutes: Math.max(0, Number(form.durationMinutes) || 0),
+        hideIdentityOnScoreboard: Boolean(form.hideIdentityOnScoreboard),
         createdAt: form.createdAt || new Date().toISOString()
       };
 
@@ -683,18 +738,67 @@ const TeacherApp = ({ db, setDb, user, onLogout }) => {
     }
   };
 
+  const duplicateQuiz = async (quiz) => {
+    try {
+      const quizData = {
+        ...quiz,
+        title: `${quiz.title} (Copy)`,
+        joinCode: genCode("QZ-"),
+        questions: (quiz.questions || []).map(q => ({ ...q, id: genId() })),
+        createdAt: new Date().toISOString()
+      };
+      delete quizData.id;
+      const ref = await addDoc(collection(firestore, "quizzes"), quizData);
+      setDb(d => ({ ...d, quizzes: [...d.quizzes, { id: ref.id, ...quizData }] }));
+    } catch (error) {
+      alert(error.message);
+    }
+  };
+
+  const deleteTeacherCourse = async (course) => {
+    if (course.teacherId !== user.id) return;
+    if (!window.confirm(`Delete "${course.name}" and all enrollments, quizzes, and attempts?`)) return;
+
+    const relatedQuizzes = db.quizzes.filter(q => q.courseId === course.id);
+    const relatedQuizIds = relatedQuizzes.map(q => q.id);
+    const relatedEnrollments = db.enrollments.filter(e => e.courseId === course.id);
+    const relatedAttempts = db.attempts.filter(a => relatedQuizIds.includes(a.quizId));
+
+    try {
+      await Promise.all([
+        deleteDoc(doc(firestore, "courses", course.id)),
+        ...relatedQuizzes.map(q => deleteDoc(doc(firestore, "quizzes", q.id))),
+        ...relatedEnrollments.map(e => deleteDoc(doc(firestore, "enrollments", e.id))),
+        ...relatedAttempts.map(a => deleteDoc(doc(firestore, "attempts", a.id)))
+      ]);
+      setDb(d => ({
+        ...d,
+        courses: d.courses.filter(c => c.id !== course.id),
+        quizzes: d.quizzes.filter(q => q.courseId !== course.id),
+        enrollments: d.enrollments.filter(e => e.courseId !== course.id),
+        attempts: d.attempts.filter(a => !relatedQuizIds.includes(a.quizId))
+      }));
+    } catch (error) {
+      alert(error.message);
+    }
+  };
+
   const openEditor = (quiz) => {
     setEditingQuiz(quiz);
     setTab("editor");
     setQuestionForm({ text: "", options: ["", "", "", ""], correctAnswer: 0 });
+    setEditingQuestionId(null);
+    setImportPreview([]);
+    setImportErrors([]);
     setErr("");
   };
 
-  const addQuestion = async () => {
+  const saveQuestion = async () => {
     if (!questionForm.text || questionForm.options.some(o => !o)) return setErr("Fill all question fields.");
 
-    const newQ = { id: genId(), ...questionForm };
-    const nextQuestions = [...(currentQuiz?.questions || []), newQ];
+    const nextQuestions = editingQuestionId
+      ? (currentQuiz?.questions || []).map(q => q.id === editingQuestionId ? { ...q, ...questionForm } : q)
+      : [...(currentQuiz?.questions || []), { id: genId(), ...questionForm }];
 
     try {
       await updateDoc(doc(firestore, "quizzes", editingQuiz.id), {
@@ -707,9 +811,69 @@ const TeacherApp = ({ db, setDb, user, onLogout }) => {
       }));
       setEditingQuiz(prev => ({ ...prev, questions: nextQuestions }));
       setQuestionForm({ text: "", options: ["", "", "", ""], correctAnswer: 0 });
+      setEditingQuestionId(null);
       setErr("");
     } catch (err) {
       alert(err.message);
+    }
+  };
+
+  const editQuestion = (question) => {
+    setQuestionForm({
+      text: question.text,
+      options: [...question.options],
+      correctAnswer: question.correctAnswer
+    });
+    setEditingQuestionId(question.id);
+    setErr("");
+  };
+
+  const readQuestionFile = async (file) => {
+    if (!file) return;
+    setImporting(true);
+    setImportPreview([]);
+    setImportErrors([]);
+    try {
+      let text = "";
+      if (file.name.toLowerCase().endsWith(".pdf")) {
+        const pdf = await pdfjsLib.getDocument({ data: await file.arrayBuffer() }).promise;
+        const pages = [];
+        for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber++) {
+          const page = await pdf.getPage(pageNumber);
+          const content = await page.getTextContent();
+          pages.push(content.items.map(item => `${item.str}${item.hasEOL ? "\n" : " "}`).join(""));
+        }
+        text = pages.join("\n");
+      } else if (file.name.toLowerCase().endsWith(".docx")) {
+        const result = await mammoth.extractRawText({ arrayBuffer: await file.arrayBuffer() });
+        text = result.value;
+      } else {
+        throw new Error("Choose a .pdf or .docx file.");
+      }
+      const parsed = parseImportedQuestions(text);
+      setImportPreview(parsed.questions);
+      setImportErrors(parsed.errors);
+    } catch (error) {
+      setImportErrors([error.message]);
+    } finally {
+      setImporting(false);
+    }
+  };
+
+  const importQuestions = async () => {
+    if (!importPreview.length) return;
+    const nextQuestions = [...(currentQuiz?.questions || []), ...importPreview];
+    try {
+      await updateDoc(doc(firestore, "quizzes", editingQuiz.id), { questions: nextQuestions });
+      setDb(d => ({
+        ...d,
+        quizzes: d.quizzes.map(q => q.id === editingQuiz.id ? { ...q, questions: nextQuestions } : q)
+      }));
+      setEditingQuiz(prev => ({ ...prev, questions: nextQuestions }));
+      setImportPreview([]);
+      setImportErrors([]);
+    } catch (error) {
+      alert(error.message);
     }
   };
 
@@ -738,6 +902,16 @@ const TeacherApp = ({ db, setDb, user, onLogout }) => {
     ? teacherAttempts
     : teacherAttempts.filter(a => a.quizId === selectedQuizId);
 
+  const deleteAttempt = async (attempt) => {
+    if (!window.confirm(`Delete the attempt by ${attempt.studentName || "this student"}?`)) return;
+    try {
+      await deleteDoc(doc(firestore, "attempts", attempt.id));
+      setDb(d => ({ ...d, attempts: d.attempts.filter(a => a.id !== attempt.id) }));
+    } catch (error) {
+      alert(error.message);
+    }
+  };
+
   const getScorePercent = (attempt) => {
     const quiz = db.quizzes.find(q => q.id === attempt.quizId);
     if (!quiz || !quiz.questions.length) return 0;
@@ -750,6 +924,15 @@ const TeacherApp = ({ db, setDb, user, onLogout }) => {
     if (pct >= 50) return { color: "#92400e", bg: "#fef3c7" };
     return { color: "#991b1b", bg: "#fee2e2" };
   };
+
+  const sortedAttempts = [...filteredAttempts].sort((a, b) => {
+    if (resultSort === "highest") return getScorePercent(b) - getScorePercent(a);
+    if (resultSort === "lowest") return getScorePercent(a) - getScorePercent(b);
+    if (resultSort === "nameAsc") return (a.studentName || "").localeCompare(b.studentName || "");
+    if (resultSort === "nameDesc") return (b.studentName || "").localeCompare(a.studentName || "");
+    if (resultSort === "oldest") return new Date(a.completedAt || 0) - new Date(b.completedAt || 0);
+    return new Date(b.completedAt || 0) - new Date(a.completedAt || 0);
+  });
 
   const exportResults = () => {
     const BOM  = "\uFEFF"; // UTF-8 BOM so Excel opens file correctly
@@ -831,6 +1014,36 @@ const TeacherApp = ({ db, setDb, user, onLogout }) => {
     win.document.close();
   };
 
+  const printAttempt = (attempt) => {
+    const quiz = db.quizzes.find(q => q.id === attempt.quizId);
+    if (!quiz) return alert("The quiz for this attempt no longer exists.");
+    const questionRows = quiz.questions.map((q, index) => {
+      const selectedIndex = Number(attempt.answers?.[index]);
+      return `
+        <section>
+          <h3>Q${index + 1}. ${escapeHtml(q.text)}</h3>
+          <p><strong>Student answer:</strong> ${escapeHtml(q.options[selectedIndex] || "Not answered")}</p>
+          <p><strong>Correct answer:</strong> ${escapeHtml(q.options[q.correctAnswer] || "")}</p>
+        </section>`;
+    }).join("");
+    const win = window.open("", "_blank");
+    if (!win) return alert("Please allow popups to print the answer sheet.");
+    win.document.write(`
+      <html><head><title>${escapeHtml(quiz.title)} - Answer Sheet</title>
+      <style>
+        body{font-family:Arial,sans-serif;padding:32px;color:#111827} header{border-bottom:2px solid #111827;margin-bottom:24px}
+        section{break-inside:avoid;border-bottom:1px solid #e5e7eb;padding:10px 0} h3{font-size:15px;margin:0 0 8px}
+        p{font-size:13px;margin:4px 0}.meta{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+      </style></head><body>
+      <header><h1>${escapeHtml(quiz.title)}</h1><div class="meta">
+      <p><strong>Name:</strong> ${escapeHtml(attempt.studentName || "-")}</p>
+      <p><strong>USN:</strong> ${escapeHtml(attempt.studentUSN || "-")}</p>
+      <p><strong>Score:</strong> ${escapeHtml(attempt.score)} / ${quiz.questions.length}</p>
+      <p><strong>Submitted:</strong> ${escapeHtml(attempt.completedAt ? new Date(attempt.completedAt).toLocaleString() : "-")}</p>
+      </div></header>${questionRows}<script>window.onload=()=>window.print()</script></body></html>`);
+    win.document.close();
+  };
+
   // Per-quiz summary cards for the results header
   const quizSummaries = myQuizzes.map(q => {
     const attempts = teacherAttempts.filter(a => a.quizId === q.id);
@@ -901,8 +1114,15 @@ const TeacherApp = ({ db, setDb, user, onLogout }) => {
 </div>
       ) : (
         myCourses.map(course => (
-          <div key={course.id}>
-           {course.name}
+          <div key={course.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 0", borderBottom: "1px solid #e2e8f0" }}>
+            <div>
+              <div style={{ fontWeight: 700 }}>{course.name}</div>
+              <div style={{ color: "#64748b", fontSize: 13 }}>{course.description}</div>
+            </div>
+            <div style={{ display: "flex", gap: 8 }}>
+              <Btn size="sm" variant="ghost" onClick={() => { setForm({ ...course }); setModal("course"); }}>Edit</Btn>
+              <Btn size="sm" variant="danger" onClick={() => deleteTeacherCourse(course)}>Delete</Btn>
+            </div>
           </div>
         ))
       )}
@@ -939,6 +1159,7 @@ const TeacherApp = ({ db, setDb, user, onLogout }) => {
                           <Btn size="sm" variant="purple"  onClick={() => setQrTarget({ title: q.title, code: q.joinCode, description: `Share this QR so students can directly access "${q.title}"` })}> QR</Btn>
                           <Btn size="sm" variant="outline" onClick={() => openEditor(q)}> Questions</Btn>
                           <Btn size="sm" variant="ghost"   onClick={() => openQuizModal(q)}>Edit</Btn>
+                          <Btn size="sm" variant="success" onClick={() => duplicateQuiz(q)}>Duplicate</Btn>
                           <Btn size="sm" variant="danger"  onClick={() => deleteQuiz(q.id)}>Delete</Btn>
                         </div>
                       </div>
@@ -963,7 +1184,7 @@ const TeacherApp = ({ db, setDb, user, onLogout }) => {
 
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24 }}>
               <Card>
-                <h3 style={{ margin: "0 0 16px", fontWeight: 700, fontSize: 15 }}>Add New Question</h3>
+                <h3 style={{ margin: "0 0 16px", fontWeight: 700, fontSize: 15 }}>{editingQuestionId ? "Edit Question" : "Add New Question"}</h3>
                 <Textarea label="Question Text" value={questionForm.text} onChange={e => setQuestionForm({ ...questionForm, text: e.target.value })} placeholder="Enter your question..." />
                {[0,1,2,3].map(i => (
                   <div key={i} style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
@@ -974,7 +1195,25 @@ const TeacherApp = ({ db, setDb, user, onLogout }) => {
                 ))}
                 <p style={{ fontSize: 12, color: "#059669", margin: "0 0 12px" }}> Select radio = correct answer</p>
                {err && <p style={{ color: "#dc2626", fontSize: 13, margin: "0 0 10px" }}>{err}</p>}
-                <Btn onClick={addQuestion} variant="success">+ Add Question</Btn>
+                <div style={{ display: "flex", gap: 8 }}>
+                  <Btn onClick={saveQuestion} variant="success">{editingQuestionId ? "Save Question" : "+ Add Question"}</Btn>
+                  {editingQuestionId && <Btn variant="ghost" onClick={() => { setEditingQuestionId(null); setQuestionForm({ text: "", options: ["", "", "", ""], correctAnswer: 0 }); }}>Cancel</Btn>}
+                </div>
+                <div style={{ borderTop: "1px solid #e2e8f0", marginTop: 22, paddingTop: 18 }}>
+                  <h3 style={{ margin: "0 0 8px", fontSize: 15 }}>Import PDF or Word</h3>
+                  <input type="file" accept=".pdf,.docx" onChange={e => readQuestionFile(e.target.files?.[0])} />
+                  {importing && <p style={{ color: "#64748b", fontSize: 13 }}>Extracting questions...</p>}
+                  {importErrors.map(message => <p key={message} style={{ color: "#dc2626", fontSize: 12 }}>{message}</p>)}
+                  {importPreview.length > 0 && (
+                    <div style={{ marginTop: 12 }}>
+                      <p style={{ fontSize: 13, fontWeight: 700 }}>{importPreview.length} valid question(s) ready to import.</p>
+                      <div style={{ maxHeight: 180, overflow: "auto", background: "#f8fafc", padding: 10, borderRadius: 8 }}>
+                        {importPreview.map((q, index) => <div key={q.id} style={{ fontSize: 12, marginBottom: 8 }}><strong>Q{index + 1}.</strong> {q.text}</div>)}
+                      </div>
+                      <Btn size="sm" onClick={importQuestions} style={{ marginTop: 10 }}>Save Imported Questions</Btn>
+                    </div>
+                  )}
+                </div>
               </Card>
 
               <div>
@@ -992,7 +1231,10 @@ const TeacherApp = ({ db, setDb, user, onLogout }) => {
                             </div>
                           ))}
                         </div>
-                        <Btn size="sm" variant="danger" onClick={() => deleteQuestion(q.id)} style={{ marginLeft: 8 }}></Btn>
+                        <div style={{ display: "flex", gap: 6, marginLeft: 8 }}>
+                          <Btn size="sm" variant="ghost" onClick={() => editQuestion(q)}>Edit</Btn>
+                          <Btn size="sm" variant="danger" onClick={() => deleteQuestion(q.id)}>Delete</Btn>
+                        </div>
                       </div>
                     </Card>
                   ))
@@ -1032,6 +1274,26 @@ const TeacherApp = ({ db, setDb, user, onLogout }) => {
               </div>
             )}
 
+            {selectedQuizId !== "all" && (() => {
+              const scoreboardQuiz = myQuizzes.find(q => q.id === selectedQuizId);
+              const leaders = teacherAttempts
+                .filter(a => a.quizId === selectedQuizId)
+                .sort((a, b) => getScorePercent(b) - getScorePercent(a))
+                .slice(0, 10);
+              return (
+                <Card style={{ marginBottom: 20 }}>
+                  <h3 style={{ margin: "0 0 12px" }}>Live Scoreboard: {scoreboardQuiz?.title}</h3>
+                  {leaders.length === 0 ? <p style={{ color: "#64748b" }}>Waiting for submissions...</p> : leaders.map((attempt, index) => (
+                    <div key={attempt.id} style={{ display: "grid", gridTemplateColumns: "60px 1fr 100px", padding: "8px 0", borderBottom: "1px solid #f1f5f9" }}>
+                      <strong>#{index + 1}</strong>
+                      <span>{scoreboardQuiz?.hideIdentityOnScoreboard ? `Student ${index + 1}` : attempt.studentName}</span>
+                      <strong>{getScorePercent(attempt)}%</strong>
+                    </div>
+                  ))}
+                </Card>
+              );
+            })()}
+
            {/* Filter bar */}
             <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 16 }}>
               <label style={{ fontSize: 13, fontWeight: 600, color: "#374151" }}>Filter by quiz:</label>
@@ -1046,6 +1308,18 @@ const TeacherApp = ({ db, setDb, user, onLogout }) => {
                   return <option key={q.id} value={q.id}>{q.title} ({cnt})</option>;
                 })}
               </select>
+              <select
+                value={resultSort}
+                onChange={e => setResultSort(e.target.value)}
+                style={{ padding: "7px 12px", borderRadius: 8, border: "1.5px solid #d1d5db", fontSize: 13, background: "#fff" }}
+              >
+                <option value="latest">Latest submission</option>
+                <option value="oldest">Oldest submission</option>
+                <option value="highest">Highest score first</option>
+                <option value="lowest">Lowest score first</option>
+                <option value="nameAsc">Student name (A-Z)</option>
+                <option value="nameDesc">Student name (Z-A)</option>
+              </select>
               <span style={{ marginLeft: "auto", fontSize: 13, color: "#64748b" }}>
                {filteredAttempts.length} result{filteredAttempts.length !== 1 ? "s" : ""}
               </span>
@@ -1059,13 +1333,13 @@ const TeacherApp = ({ db, setDb, user, onLogout }) => {
                 <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
                   <thead>
                     <tr style={{ background: "#f8fafc", borderBottom: "1.5px solid #e2e8f0" }}>
-                     {["#", "Name", "USN", "Quiz", "Course", "Score", "Score %"].map(h => (
+                     {["#", "Name", "USN", "Quiz", "Course", "Score", "Score %", "Actions"].map(h => (
                         <th key={h} style={{ padding: "11px 14px", textAlign: "left", fontWeight: 700, fontSize: 12, color: "#64748b", textTransform: "uppercase", letterSpacing: 0.5, whiteSpace: "nowrap" }}>{h}</th>
                       ))}
                     </tr>
                   </thead>
                   <tbody>
-                   {filteredAttempts.map((a, i) => {
+                   {sortedAttempts.map((a, i) => {
                       const quiz   = db.quizzes.find(q => q.id === a.quizId);
                       const course = db.courses.find(c => c.id === quiz?.courseId);
                       const pct    = getScorePercent(a);
@@ -1082,6 +1356,10 @@ const TeacherApp = ({ db, setDb, user, onLogout }) => {
                           </td>
                           <td style={{ padding: "11px 14px" }}>
                             <span style={{ background: bg, color, borderRadius: 20, padding: "3px 10px", fontSize: 12, fontWeight: 700 }}>{pct}%</span>
+                          </td>
+                          <td style={{ padding: "11px 14px", display: "flex", gap: 6 }}>
+                            <Btn size="sm" variant="outline" onClick={() => printAttempt(a)}>Print</Btn>
+                            <Btn size="sm" variant="danger" onClick={() => deleteAttempt(a)}>Delete</Btn>
                           </td>
                         </tr>
                       );
@@ -1126,6 +1404,11 @@ const TeacherApp = ({ db, setDb, user, onLogout }) => {
           <Input    label="Quiz Title"   value={form.title       || ""} onChange={e => setForm({ ...form, title:       e.target.value })} />
           <Textarea label="Description"  value={form.description || ""} onChange={e => setForm({ ...form, description: e.target.value })} />
           <Select   label="Course"       value={form.courseId    || ""} onChange={e => setForm({ ...form, courseId:    e.target.value })} options={myCourses.map(c => ({ value: c.id, label: c.name }))} />
+          <Input label="Timer (minutes, 0 = no timer)" type="number" min="0" value={form.durationMinutes || 0} onChange={e => setForm({ ...form, durationMinutes: e.target.value })} />
+          <label style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 16, fontSize: 13 }}>
+            <input type="checkbox" checked={Boolean(form.hideIdentityOnScoreboard)} onChange={e => setForm({ ...form, hideIdentityOnScoreboard: e.target.checked })} />
+            Hide student identities on live scoreboard
+          </label>
          {err && <p style={{ color: "#dc2626", fontSize: 13 }}>{err}</p>}
           <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
             <Btn variant="ghost" onClick={() => setModal(null)}>Cancel</Btn>
@@ -1149,6 +1432,9 @@ const StudentApp = ({ db, setDb, user, onLogout }) => {
   const [answers, setAnswers]                   = useState({});
   const [submitted, setSubmitted]               = useState(false);
   const [result, setResult]                     = useState(null);
+  const [currentQuestion, setCurrentQuestion]   = useState(0);
+  const [remainingSeconds, setRemainingSeconds] = useState(null);
+  const [submitting, setSubmitting]             = useState(false);
   const [showRegistration, setShowRegistration] = useState(false);
   const [pendingQuiz, setPendingQuiz]           = useState(null);
 
@@ -1158,6 +1444,41 @@ const StudentApp = ({ db, setDb, user, onLogout }) => {
   const myEnrollments = db.enrollments.filter(e => e.studentId === user.id);
   const myCourseIds   = myEnrollments.map(e => e.courseId);
   const myAttempts    = db.attempts.filter(a => a.studentId === user.id);
+  const quizSessionKey = `quizlyActiveQuiz:${user.id}`;
+
+  useEffect(() => {
+    const saved = localStorage.getItem(quizSessionKey);
+    if (!saved || activeQuiz) return;
+    try {
+      const session = JSON.parse(saved);
+      const quiz = db.quizzes.find(q => q.id === session.quizId);
+      if (!quiz) return localStorage.removeItem(quizSessionKey);
+      setActiveQuiz(quiz);
+      setAnswers(session.answers || {});
+      setStudentName(session.studentName || user.name || "");
+      setStudentUSN(session.studentUSN || user.usn || "");
+      setCurrentQuestion(session.currentQuestion || 0);
+      setRemainingSeconds(session.endsAt ? Math.max(0, Math.ceil((session.endsAt - Date.now()) / 1000)) : null);
+    } catch {
+      localStorage.removeItem(quizSessionKey);
+    }
+  }, [db.quizzes, activeQuiz, quizSessionKey, user.name, user.usn]);
+
+  useEffect(() => {
+    if (!activeQuiz || submitted) return;
+    const existing = localStorage.getItem(quizSessionKey);
+    let endsAt = null;
+    try { endsAt = existing ? JSON.parse(existing).endsAt : null; } catch { endsAt = null; }
+    if (!endsAt && activeQuiz.durationMinutes > 0) endsAt = Date.now() + activeQuiz.durationMinutes * 60 * 1000;
+    localStorage.setItem(quizSessionKey, JSON.stringify({
+      quizId: activeQuiz.id,
+      answers,
+      studentName,
+      studentUSN,
+      currentQuestion,
+      endsAt
+    }));
+  }, [activeQuiz, answers, currentQuestion, studentName, studentUSN, submitted, quizSessionKey]);
 
   //  Read QR code from URL once on mount only 
 useEffect(() => {
@@ -1185,6 +1506,7 @@ useEffect(() => {
   const tabs = [
    { id: "join",      label: "Join via Code", icon: "" },
    { id: "mycourses", label: "My Courses",     icon: "" },
+   { id: "myresults", label: "My Results",     icon: "" },
   ];
 
   //  Join via code 
@@ -1241,6 +1563,8 @@ useEffect(() => {
     }
     setActiveQuiz(quiz);
     setAnswers({});
+    setCurrentQuestion(0);
+    setRemainingSeconds(quiz.durationMinutes > 0 ? quiz.durationMinutes * 60 : null);
     setSubmitted(false);
     setResult(null);
   };
@@ -1279,8 +1603,9 @@ useEffect(() => {
   };
 
   //  Submit quiz 
-  const submitQuiz = async () => {
-    if (Object.keys(answers).length < activeQuiz.questions.length) {
+  const submitQuiz = async (force = false) => {
+    if (submitting || submitted) return;
+    if (!force && Object.keys(answers).length < activeQuiz.questions.length) {
       alert("Please answer all questions before submitting.");
       return;
     }
@@ -1314,16 +1639,30 @@ useEffect(() => {
     };
 
     try {
+      setSubmitting(true);
       const ref = await addDoc(collection(firestore, "attempts"), attemptData);
       const attempt = { id: ref.id, ...attemptData };
 
       setDb(d => ({ ...d, attempts: [...d.attempts, attempt] }));
       setResult({ score, total: activeQuiz.questions.length });
       setSubmitted(true);
+      localStorage.removeItem(quizSessionKey);
     } catch (err) {
       alert(err.message);
+    } finally {
+      setSubmitting(false);
     }
   };
+
+  useEffect(() => {
+    if (!activeQuiz || submitted || remainingSeconds === null) return;
+    if (remainingSeconds <= 0) {
+      submitQuiz(true);
+      return;
+    }
+    const timer = window.setTimeout(() => setRemainingSeconds(value => Math.max(0, value - 1)), 1000);
+    return () => window.clearTimeout(timer);
+  }, [activeQuiz, submitted, remainingSeconds]);
 
   //  Registration screen 
   if (showRegistration) {
@@ -1380,14 +1719,26 @@ useEffect(() => {
               <div style={{ marginBottom: 28 }}>
                 <h2 style={{ margin: "0 0 6px", fontWeight: 800, fontSize: 24, color: "#0f172a" }}>{activeQuiz.title}</h2>
                 <p style={{ margin: "0 0 12px", color: "#64748b" }}>{activeQuiz.description} {activeQuiz.questions.length} questions</p>
+                {remainingSeconds !== null && (
+                  <div style={{ marginBottom: 12, padding: "10px 14px", borderRadius: 8, background: remainingSeconds < 60 ? "#fee2e2" : "#eff6ff", color: remainingSeconds < 60 ? "#991b1b" : "#1e40af", fontWeight: 800 }}>
+                    Time left: {String(Math.floor(remainingSeconds / 60)).padStart(2, "0")}:{String(remainingSeconds % 60).padStart(2, "0")}
+                    <span style={{ marginLeft: 12, fontWeight: 500, fontSize: 12 }}>
+                      Suggested pace: {Math.ceil((activeQuiz.durationMinutes * 60) / activeQuiz.questions.length)} seconds per question
+                    </span>
+                  </div>
+                )}
                 <div style={{ background: "#e2e8f0", borderRadius: 20, height: 6 }}>
                   <div style={{ height: 6, borderRadius: 20, background: "#1e40af", width: `${(Object.keys(answers).length / activeQuiz.questions.length) * 100}%`, transition: "width .3s" }} />
                 </div>
-                <p style={{ margin: "6px 0 0", fontSize: 13, color: "#64748b" }}>{Object.keys(answers).length} / {activeQuiz.questions.length} answered</p>
+                <p style={{ margin: "6px 0 0", fontSize: 13, color: "#64748b" }}>
+                  Question {currentQuestion + 1} of {activeQuiz.questions.length} | {Object.keys(answers).length} answered
+                </p>
               </div>
 
-             {activeQuiz.questions.map((q, qi) => (
-                <Card key={q.id} style={{ marginBottom: 16, border: answers[qi] !== undefined ? "2px solid #bfdbfe" : "1.5px solid #e2e8f0" }}>
+             {activeQuiz.questions[currentQuestion] && (() => {
+                const q = activeQuiz.questions[currentQuestion];
+                const qi = currentQuestion;
+                return <Card key={q.id} style={{ marginBottom: 16, border: answers[qi] !== undefined ? "2px solid #bfdbfe" : "1.5px solid #e2e8f0" }}>
                   <div style={{ fontWeight: 700, marginBottom: 14, color: "#1e293b" }}>
                     <span style={{ color: "#2563eb", marginRight: 8 }}>Q{qi + 1}.</span>{q.text}
                   </div>
@@ -1399,11 +1750,25 @@ useEffect(() => {
                       </label>
                     ))}
                   </div>
-                </Card>
-              ))}
+                </Card>;
+              })()}
 
-              <div style={{ textAlign: "center", marginTop: 32 }}>
-                <Btn size="lg" variant="success" onClick={submitQuiz}>Submit Quiz </Btn>
+              <div style={{ display: "flex", gap: 6, flexWrap: "wrap", justifyContent: "center", marginBottom: 18 }}>
+                {activeQuiz.questions.map((q, index) => (
+                  <button key={q.id} onClick={() => setCurrentQuestion(index)} style={{
+                    width: 34, height: 34, borderRadius: 6, cursor: "pointer",
+                    border: index === currentQuestion ? "2px solid #1e40af" : "1px solid #cbd5e1",
+                    background: answers[index] === undefined ? "#fff" : "#dbeafe",
+                    fontWeight: 700
+                  }}>{index + 1}</button>
+                ))}
+              </div>
+
+              <div style={{ display: "flex", justifyContent: "space-between", marginTop: 24 }}>
+                <Btn variant="ghost" disabled={currentQuestion === 0} onClick={() => setCurrentQuestion(i => i - 1)}>Previous</Btn>
+                {currentQuestion < activeQuiz.questions.length - 1
+                  ? <Btn onClick={() => setCurrentQuestion(i => i + 1)}>Next</Btn>
+                  : <Btn size="lg" variant="success" disabled={submitting} onClick={() => submitQuiz(false)}>{submitting ? "Submitting..." : "Submit Quiz"}</Btn>}
               </div>
             </>
           ) : (
@@ -1416,36 +1781,18 @@ useEffect(() => {
                 <p style={{ margin: "0 0 6px", fontSize: 16, color: "#374151" }}>
                   You scored <strong>{result.score}</strong> out of <strong>{result.total}</strong>
                 </p>
+                <p style={{ margin: "0 0 6px", fontSize: 14, color: "#475569" }}>
+                  <strong>{studentName}</strong> | USN: <strong>{studentUSN}</strong>
+                </p>
                 <p style={{ margin: "0 0 24px", fontSize: 14, color: "#64748b" }}>
                  {pct === 100 ? " Perfect!" : pct >= 75 ? "Great job!" : pct >= 50 ? "Keep practicing!" : "Better luck next time."}
                 </p>
                 <Btn onClick={() => { setActiveQuiz(null); setTab("myresults"); }} variant="outline">View My Results</Btn>
               </Card>
 
-              <h3 style={{ fontWeight: 800, fontSize: 18, marginBottom: 16 }}>Answer Review</h3>
-             {activeQuiz.questions.map((q, qi) => {
-                const correct = answers[qi] === q.correctAnswer;
-                return (
-                  <Card key={q.id} style={{ marginBottom: 12, border: `2px solid ${correct ? "#bbf7d0" : "#fecaca"}` }}>
-                    <div style={{ display: "flex", gap: 10, marginBottom: 10 }}>
-                      <span style={{ fontSize: 18 }}>{correct ? "" : ""}</span>
-                      <span style={{ fontWeight: 700, color: "#1e293b" }}>Q{qi + 1}. {q.text}</span>
-                    </div>
-                    <div style={{ paddingLeft: 28, display: "grid", gap: 6 }}>
-                     {q.options.map((opt, oi) => {
-                        const isCorrect  = oi === q.correctAnswer;
-                        const isSelected = oi === answers[qi];
-                        return (
-                          <div key={oi} style={{ fontSize: 13, padding: "5px 10px", borderRadius: 6, background: isCorrect ? "#d1fae5" : isSelected ? "#fee2e2" : "#f8fafc", color: isCorrect ? "#065f46" : isSelected ? "#991b1b" : "#64748b", fontWeight: isCorrect || isSelected ? 600 : 400 }}>
-                           {isCorrect ? " " : isSelected ? " " : `${String.fromCharCode(65 + oi)}. `}{opt}
-                           {isCorrect && <span style={{ marginLeft: 8, fontSize: 11 }}>(Correct Answer)</span>}
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </Card>
-                );
-              })}
+              <Card style={{ textAlign: "center", color: "#475569" }}>
+                The answer key is hidden after submission. Your teacher can review and print the complete answer sheet.
+              </Card>
             </>
           )}
         </div>
@@ -1883,6 +2230,7 @@ const [dataLoading, setDataLoading] = useState(true);
   }, []);
 
   const [currentUser, setCurrentUser] = useState(null);
+  const [authLoading, setAuthLoading] = useState(true);
   const [guestId] = useState(() => {
     const existing = sessionStorage.getItem("quizlyGuestId");
     if (existing) return existing;
@@ -1895,12 +2243,22 @@ const [dataLoading, setDataLoading] = useState(true);
     const unsub = onAuthStateChanged(auth, async (firebaseUser) => {
       if (!firebaseUser) {
         setCurrentUser(null);
+        setAuthLoading(false);
         return;
       }
 
-      const snap = await getDoc(doc(firestore, "users", firebaseUser.uid));
-      if (snap.exists()) {
-        setCurrentUser({ id: firebaseUser.uid, ...snap.data() });
+      try {
+        const snap = await getDoc(doc(firestore, "users", firebaseUser.uid));
+        if (snap.exists()) {
+          setCurrentUser({ id: firebaseUser.uid, ...snap.data() });
+        } else {
+          setCurrentUser(null);
+        }
+      } catch (error) {
+        console.error("Unable to restore user session:", error);
+        setCurrentUser(null);
+      } finally {
+        setAuthLoading(false);
       }
     });
 
@@ -1915,6 +2273,14 @@ const [dataLoading, setDataLoading] = useState(true);
   //  QR code from URL 
   const params = new URLSearchParams(window.location.search);
   const qrCode = params.get("code");
+
+  if (authLoading) {
+    return (
+      <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "#f8fafc", color: "#475569", fontFamily: "Arial, sans-serif" }}>
+        Restoring your session...
+      </div>
+    );
+  }
 
   //  Fix 3: guest gets a unique id per session, not "guest" 
   if (!currentUser) {
