@@ -41,24 +41,24 @@ const escapeHtml = (value = "") => String(value)
 const parseImportedQuestions = (rawText) => {
   const text = rawText
     .replace(/\r/g, "")
-    .replace(/\s+(?=Q(?:uestion)?\s*\d+\s*[.):\-])/gi, "\n")
-    .replace(/\s+(?=[A-D]\s*[.)\-:]\s+)/g, "\n")
-    .replace(/\s+(?=Answer\s*[:\-])/gi, "\n")
+    .replace(/\s+(?=Q(?:uestion)?\s*\d+\s*[.):-])/gi, "\n")
+    .replace(/\s+(?=[A-D]\s*[.):-]\s+)/g, "\n")
+    .replace(/\s+(?=Answer\s*[:-])/gi, "\n")
     .trim();
-  const blocks = text.split(/(?=^\s*Q(?:uestion)?\s*\d+\s*[.):\-])/gmi).filter(Boolean);
+  const blocks = text.split(/(?=^\s*Q(?:uestion)?\s*\d+\s*[.):-])/gmi).filter(Boolean);
   const questions = [];
   const errors = [];
 
   blocks.forEach((block, index) => {
     const lines = block.split("\n").map(line => line.trim()).filter(Boolean);
     const questionLine = lines.shift() || "";
-    const questionText = questionLine.replace(/^\s*Q(?:uestion)?\s*\d+\s*[.):\-]\s*/i, "").trim();
+    const questionText = questionLine.replace(/^\s*Q(?:uestion)?\s*\d+\s*[.):-]\s*/i, "").trim();
     const options = ["A", "B", "C", "D"].map(letter => {
-      const line = lines.find(item => new RegExp(`^${letter}\\s*[.)\\-:]\\s*`, "i").test(item));
-      return line ? line.replace(new RegExp(`^${letter}\\s*[.)\\-:]\\s*`, "i"), "").trim() : "";
+      const line = lines.find(item => new RegExp(`^${letter}\\s*[.):-]\\s*`, "i").test(item));
+      return line ? line.replace(new RegExp(`^${letter}\\s*[.):-]\\s*`, "i"), "").trim() : "";
     });
-    const answerLine = lines.find(line => /^answer\s*[:\-]/i.test(line));
-    const answerLetter = answerLine?.replace(/^answer\s*[:\-]\s*/i, "").trim().charAt(0).toUpperCase();
+    const answerLine = lines.find(line => /^answer\s*[:-]/i.test(line));
+    const answerLetter = answerLine?.replace(/^answer\s*[:-]\s*/i, "").trim().charAt(0).toUpperCase();
     const correctAnswer = ["A", "B", "C", "D"].indexOf(answerLetter);
 
     if (!questionText || options.some(option => !option) || correctAnswer < 0) {
@@ -1435,6 +1435,7 @@ const StudentApp = ({ db, setDb, user, onLogout }) => {
   const [currentQuestion, setCurrentQuestion]   = useState(0);
   const [remainingSeconds, setRemainingSeconds] = useState(null);
   const [submitting, setSubmitting]             = useState(false);
+  const submitQuizRef                           = useRef(null);
   const [showRegistration, setShowRegistration] = useState(false);
   const [pendingQuiz, setPendingQuiz]           = useState(null);
 
@@ -1653,11 +1654,12 @@ useEffect(() => {
       setSubmitting(false);
     }
   };
+  submitQuizRef.current = submitQuiz;
 
   useEffect(() => {
     if (!activeQuiz || submitted || remainingSeconds === null) return;
     if (remainingSeconds <= 0) {
-      submitQuiz(true);
+      submitQuizRef.current?.(true);
       return;
     }
     const timer = window.setTimeout(() => setRemainingSeconds(value => Math.max(0, value - 1)), 1000);
@@ -1977,7 +1979,7 @@ useEffect(() => {
 };
 
 //  LOGIN PAGE 
-const LoginPage = ({ db, onLogin }) => {
+const LoginPage = ({ onLogin }) => {
   const [email, setEmail]       = useState("");
   const [password, setPassword] = useState("");
   const [err, setErr]           = useState("");
@@ -1987,47 +1989,15 @@ const LoginPage = ({ db, onLogin }) => {
   //  Fix 1: handleLogin defined inside the component 
  
 
-  //  Fix 2: demo buttons auto-fill from db, not hardcoded  no email shown 
-  const handleDemoClick = (label) => {
-    const roleMap = {
-      "Admin":                 "admin",
-      "Teacher (Dr. Sharma)":  "teacher",
-      "Teacher (Prof. Mehta)": "teacher",
-      "Student (Priya)":       "student",
-      "Student (Arjun)":       "student",
-    };
-    const nameMap = {
-      "Admin":                 "Super Admin",
-      "Teacher (Dr. Sharma)":  "Dr. Ananya Sharma",
-      "Teacher (Prof. Mehta)": "Prof. Rahul Mehta",
-      "Student (Priya)":       "Priya Patel",
-      "Student (Arjun)":       "Arjun Nair",
-    };
-    const user = db.users.find(u => u.name === nameMap[label] && u.role === roleMap[label]);
-    if (user) {
-      setEmail(user.email);
-      setPassword(user.password);
-      setErr("");
-    }
-  };
-
-  
 const handleLogin = async () => {
 
   try {
-
-    console.log("Trying login...");
-console.log("Email:", email);
-console.log("Password:", password);
 
 const cred = await signInWithEmailAndPassword(
   auth,
   email.trim(),
   password.trim()
 );
-
-console.log("LOGIN SUCCESS");
-console.log("UID:", cred.user.uid);
 
     const userRef =
       doc(
@@ -2314,7 +2284,7 @@ const [dataLoading, setDataLoading] = useState(true);
       }
     }
 
-    return <LoginPage db={db} onLogin={setCurrentUser} />;
+    return <LoginPage onLogin={setCurrentUser} />;
   }
 
   //  Route by role 
