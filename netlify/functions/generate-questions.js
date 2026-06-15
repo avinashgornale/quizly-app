@@ -23,14 +23,14 @@ const normalizeQuestions = (questions) => {
         ? question.correctAnswers.map(Number).filter((value) => value >= 0 && value <= 3)
         : [Number(question.correctAnswer ?? 0)].filter((value) => value >= 0 && value <= 3);
 
-      const uniqueAnswers = [...new Set(correctAnswers)];
+      const answer = correctAnswers[0] ?? 0;
 
       return {
         text: String(question.text).trim(),
         options,
-        type: uniqueAnswers.length > 1 ? "multiple" : "single",
-        correctAnswer: uniqueAnswers[0] ?? 0,
-        correctAnswers: uniqueAnswers.length ? uniqueAnswers : [0],
+        type: "single",
+        correctAnswer: answer,
+        correctAnswers: [answer],
         points: Math.max(0.01, Number(question.points) || 1),
         negativeMarks: Math.max(0, Number(question.negativeMarks) || 0),
         partialMarking: Boolean(question.partialMarking),
@@ -92,7 +92,7 @@ exports.handler = async (event) => {
         {
           role: "user",
           content: `
-Create ${count} quiz questions for a college quiz app.
+Create ${count} single-correct MCQs for a college quiz app.
 
 Topic:
 ${topic || "Use the source text below."}
@@ -102,11 +102,11 @@ ${sourceText || "No source text provided."}
 
 Rules:
 - Return only valid JSON matching the schema.
-- Use exactly 4 options per question.
-- Include single-correct and multiple-correct questions when appropriate.
+- Use exactly 4 options per MCQ.
+- Generate only single-correct MCQs.
 - Do not include explanations.
 - Do not copy long passages verbatim.
-- Keep every question clear and exam-ready.
+- Keep every MCQ clear and exam-ready.
 `
         }
       ],

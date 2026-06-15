@@ -1,7 +1,4 @@
 import { useState, useEffect, useRef } from "react";
-import mammoth from "mammoth";
-import * as pdfjsLib from "pdfjs-dist";
-import { getFunctions, httpsCallable } from "firebase/functions";
 
 import { auth, firestore } from "./firebase";
 
@@ -76,67 +73,12 @@ const prepareStudentQuiz = (quiz) => {
 
 const getQuizMaximumScore = (quiz) =>
   (quiz?.questions || []).reduce((total, question) => total + (Number(question.points) || 1), 0);
-pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
-  "pdfjs-dist/build/pdf.worker.min.mjs",
-  import.meta.url
-).toString();
-
-const cloudFunctions = getFunctions();
-
 const escapeHtml = (value = "") => String(value)
   .replace(/&/g, "&amp;")
   .replace(/</g, "&lt;")
   .replace(/>/g, "&gt;")
   .replace(/"/g, "&quot;")
   .replace(/'/g, "&#039;");
-
-const parseImportedQuestions = (rawText) => {
-  const text = rawText
-    .replace(/\r/g, "")
-    .replace(/\s+(?=Q(?:uestion)?\s*\d+\s*[.):-])/gi, "\n")
-    .replace(/\s+(?=[A-D]\s*[.):-]\s+)/g, "\n")
-    .replace(/\s+(?=Answer\s*[:-])/gi, "\n")
-    .trim();
-  const blocks = text.split(/(?=^\s*Q(?:uestion)?\s*\d+\s*[.):-])/gmi).filter(Boolean);
-  const questions = [];
-  const errors = [];
-
-  blocks.forEach((block, index) => {
-    const lines = block.split("\n").map(line => line.trim()).filter(Boolean);
-    const questionLine = lines.shift() || "";
-    const questionText = questionLine.replace(/^\s*Q(?:uestion)?\s*\d+\s*[.):-]\s*/i, "").trim();
-    const options = ["A", "B", "C", "D"].map(letter => {
-      const line = lines.find(item => new RegExp(`^${letter}\\s*[.):-]\\s*`, "i").test(item));
-      return line ? line.replace(new RegExp(`^${letter}\\s*[.):-]\\s*`, "i"), "").trim() : "";
-    });
-    const answerLine = lines.find(line => /^answer\s*[:-]/i.test(line));
-    const answerLetter = answerLine?.replace(/^answer\s*[:-]\s*/i, "").trim().charAt(0).toUpperCase();
-    const correctAnswer = ["A", "B", "C", "D"].indexOf(answerLetter);
-
-    if (!questionText || options.some(option => !option) || correctAnswer < 0) {
-      errors.push(`Question ${index + 1}: expected question text, options A-D, and "Answer: A/B/C/D".`);
-      return;
-    }
-
-    questions.push({
-      id: genId(),
-      text: questionText,
-      options,
-      type: "single",
-      correctAnswer,
-      correctAnswers: [correctAnswer],
-      points: 1,
-      negativeMarks: 0,
-      partialMarking: false,
-      difficulty: "medium",
-      bloomLevel: "understand"
-    });
-  });
-
-  if (!blocks.length) errors.push("No questions were detected.");
-  return { questions, errors };
-};
-
 
 
 //  Shared UI 
@@ -765,7 +707,6 @@ const TeacherApp = ({ db, setDb, user, onLogout }) => {
   const [editingQuestionId, setEditingQuestionId] = useState(null);
   const [importPreview, setImportPreview] = useState([]);
   const [importErrors, setImportErrors] = useState([]);
-  const [importing, setImporting] = useState(false);
   const [aiTopic, setAiTopic] = useState("");
   const [aiSourceText, setAiSourceText] = useState("");
   const [aiQuestionCount, setAiQuestionCount] = useState(10);
@@ -965,38 +906,6 @@ const TeacherApp = ({ db, setDb, user, onLogout }) => {
     setErr("");
   };
 
-  const readQuestionFile = async (file) => {
-    if (!file) return;
-    setImporting(true);
-    setImportPreview([]);
-    setImportErrors([]);
-    try {
-      let text = "";
-      if (file.name.toLowerCase().endsWith(".pdf")) {
-        const pdf = await pdfjsLib.getDocument({ data: await file.arrayBuffer() }).promise;
-        const pages = [];
-        for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber++) {
-          const page = await pdf.getPage(pageNumber);
-          const content = await page.getTextContent();
-          pages.push(content.items.map(item => `${item.str}${item.hasEOL ? "\n" : " "}`).join(""));
-        }
-        text = pages.join("\n");
-      } else if (file.name.toLowerCase().endsWith(".docx")) {
-        const result = await mammoth.extractRawText({ arrayBuffer: await file.arrayBuffer() });
-        text = result.value;
-      } else {
-        throw new Error("Choose a .pdf or .docx file.");
-      }
-      const parsed = parseImportedQuestions(text);
-      setImportPreview(parsed.questions);
-      setImportErrors(parsed.errors);
-    } catch (error) {
-      setImportErrors([error.message]);
-    } finally {
-      setImporting(false);
-    }
-  };
-
   const importQuestions = async () => {
     if (!importPreview.length) return;
     const nextQuestions = [...(currentQuiz?.questions || []), ...importPreview];
@@ -1016,39 +925,42 @@ const TeacherApp = ({ db, setDb, user, onLogout }) => {
 
   const generateQuestionsWithAi = async () => {
     if (!aiTopic.trim() && !aiSourceText.trim()) {
-      return setImportErrors(["Enter a topic or paste source text first."]);
+      return setImportErrors(["Enter a topic or syllabus first."]);
     }
 
     setAiLoading(true);
     setImportErrors([]);
 
     try {
-      const generateQuizQuestions = httpsCallable(cloudFunctions, "generateQuizQuestions");
-      const result = await generateQuizQuestions({
-        topic: aiTopic.trim(),
-        sourceText: aiSourceText.trim(),
-        count: Number(aiQuestionCount) || 10
+      const response = await fetch("/.netlify/functions/generate-questions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          topic: aiTopic.trim(),
+          sourceText: aiSourceText.trim(),
+          count: Number(aiQuestionCount) || 10
+        })
       });
 
-      const questions = (result.data?.questions || []).map(question => ({
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error || "AI generation failed.");
+
+      const questions = (payload.questions || []).map(question => ({
         id: genId(),
         text: question.text,
         options: question.options,
-        type: question.type || (question.correctAnswers?.length > 1 ? "multiple" : "single"),
-        correctAnswer: Number(question.correctAnswer ?? question.correctAnswers?.[0] ?? 0),
-        correctAnswers: (question.correctAnswers || [question.correctAnswer || 0]).map(Number),
+        type: "single",
+        correctAnswer: Number(question.correctAnswer ?? 0),
+        correctAnswers: [Number(question.correctAnswer ?? 0)],
         points: Number(question.points) || 1,
         negativeMarks: Number(question.negativeMarks) || 0,
-        partialMarking: Boolean(question.partialMarking),
+        partialMarking: false,
         difficulty: question.difficulty || "medium",
         bloomLevel: question.bloomLevel || "understand",
         tags: Array.isArray(question.tags) && question.tags.length ? question.tags : [aiTopic.trim()].filter(Boolean)
       }));
 
-      if (!questions.length) {
-        throw new Error("AI did not return valid questions.");
-      }
-
+      if (!questions.length) throw new Error("AI did not return valid MCQs.");
       setImportPreview(questions);
     } catch (error) {
       setImportErrors([error.message]);
@@ -1417,29 +1329,23 @@ const TeacherApp = ({ db, setDb, user, onLogout }) => {
                 <div style={{ display: "flex", gap: 8 }}>
                   <Btn onClick={saveQuestion} variant="success">{editingQuestionId ? "Save Question" : "+ Add Question"}</Btn>
                   {editingQuestionId && <Btn variant="ghost" onClick={() => { setEditingQuestionId(null); setQuestionForm(emptyQuestion); }}>Cancel</Btn>}
-                </div>
-                <div style={{ borderTop: "1px solid #e2e8f0", marginTop: 22, paddingTop: 18 }}>
-                  <h3 style={{ margin: "0 0 8px", fontSize: 15 }}>Import PDF or Word</h3>
-                  <input type="file" accept=".pdf,.docx" onChange={e => readQuestionFile(e.target.files?.[0])} />
-                  {importing && <p style={{ color: "#64748b", fontSize: 13 }}>Extracting questions...</p>}
+                </div>                <div style={{ borderTop: "1px solid #e2e8f0", marginTop: 22, paddingTop: 18 }}>
+                  <h3 style={{ margin: "0 0 8px", fontSize: 15 }}>AI MCQ Generator</h3>
+                  <Input label="Topic" value={aiTopic} onChange={e => setAiTopic(e.target.value)} placeholder="e.g. Water, Photosynthesis, Data Structures" />
+                  <Textarea label="Syllabus / Content (optional)" value={aiSourceText} onChange={e => setAiSourceText(e.target.value)} placeholder="Paste syllabus points or content here if you want more specific MCQs..." />
+                  <Input label="Number of MCQs" type="number" min="1" max="50" value={aiQuestionCount} onChange={e => setAiQuestionCount(e.target.value)} />
+                  <Btn size="sm" variant="purple" disabled={aiLoading} onClick={generateQuestionsWithAi}>{aiLoading ? "Generating MCQs..." : "Generate MCQs with AI"}</Btn>
+                  <p style={{ fontSize: 11, color: "#64748b" }}>Enter a topic or syllabus. AI will generate single-correct MCQs. The OpenAI key stays secure in Netlify environment variables.</p>
                   {importErrors.map(message => <p key={message} style={{ color: "#dc2626", fontSize: 12 }}>{message}</p>)}
                   {importPreview.length > 0 && (
                     <div style={{ marginTop: 12 }}>
-                      <p style={{ fontSize: 13, fontWeight: 700 }}>{importPreview.length} valid question(s) ready to import.</p>
+                      <p style={{ fontSize: 13, fontWeight: 700 }}>{importPreview.length} MCQ(s) ready to save.</p>
                       <div style={{ maxHeight: 180, overflow: "auto", background: "#f8fafc", padding: 10, borderRadius: 8 }}>
                         {importPreview.map((q, index) => <div key={q.id} style={{ fontSize: 12, marginBottom: 8 }}><strong>Q{index + 1}.</strong> {q.text}</div>)}
                       </div>
-                      <Btn size="sm" onClick={importQuestions} style={{ marginTop: 10 }}>Save Imported Questions</Btn>
+                      <Btn size="sm" onClick={importQuestions} style={{ marginTop: 10 }}>Save AI MCQs</Btn>
                     </div>
                   )}
-                </div>
-                <div style={{ borderTop: "1px solid #e2e8f0", marginTop: 22, paddingTop: 18 }}>
-                  <h3 style={{ margin: "0 0 8px", fontSize: 15 }}>AI Question Generator</h3>
-                  <Input label="Syllabus Topic" value={aiTopic} onChange={e => setAiTopic(e.target.value)} placeholder="e.g. Structural Analysis" />
-                  <Textarea label="Content / Text from PDF (optional)" value={aiSourceText} onChange={e => setAiSourceText(e.target.value)} placeholder="Paste textbook content, notes, syllabus, or extracted PDF text here..." />
-                  <Input label="Number of Questions" type="number" min="1" max="50" value={aiQuestionCount} onChange={e => setAiQuestionCount(e.target.value)} />
-                  <Btn size="sm" variant="purple" disabled={aiLoading} onClick={generateQuestionsWithAi}>{aiLoading ? "Generating..." : "Generate with AI"}</Btn>
-                  <p style={{ fontSize: 11, color: "#64748b" }}>Uses a secure Firebase Function. Never place an AI API key in React environment variables.</p>
                 </div>
               </Card>
 
