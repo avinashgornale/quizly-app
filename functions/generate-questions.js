@@ -11,18 +11,11 @@ const normalizeQuestions = (questions) => {
 
   return questions
     .map((question) => {
-      const type = ["single", "multiple", "truefalse", "fill", "numerical", "descriptive", "case-study"].includes(question.type)
-        ? question.type
-        : "single";
       const options = Array.isArray(question.options)
         ? question.options.map((option) => String(option || "").trim()).filter(Boolean).slice(0, 4)
         : [];
 
-      if (!String(question.text || "").trim()) {
-        return null;
-      }
-
-      if (["single", "multiple", "truefalse"].includes(type) && options.length !== 4) {
+      if (!String(question.text || "").trim() || options.length !== 4) {
         return null;
       }
 
@@ -30,29 +23,23 @@ const normalizeQuestions = (questions) => {
         ? question.correctAnswers.map(Number).filter((value) => value >= 0 && value <= 3)
         : [Number(question.correctAnswer ?? 0)].filter((value) => value >= 0 && value <= 3);
 
-      const answer = correctAnswers[0] ?? 0;
+      const uniqueAnswers = [...new Set(correctAnswers)];
 
       return {
         text: String(question.text).trim(),
-        caseText: String(question.caseText || "").trim(),
-        options: ["single", "multiple", "truefalse"].includes(type) ? options : [],
-        type,
-        correctAnswer: answer,
-        correctAnswers: type === "multiple" ? [...new Set(correctAnswers)].slice(0, 4) : [answer],
-        expectedAnswer: String(question.expectedAnswer || "").trim(),
-        answerGuidelines: String(question.answerGuidelines || "").trim(),
-        tolerance: Math.max(0, Number(question.tolerance) || 0),
+        options,
+        type: uniqueAnswers.length > 1 ? "multiple" : "single",
+        correctAnswer: uniqueAnswers[0] ?? 0,
+        correctAnswers: uniqueAnswers.length ? uniqueAnswers : [0],
         points: Math.max(0.01, Number(question.points) || 1),
         negativeMarks: Math.max(0, Number(question.negativeMarks) || 0),
-        partialMarking: type === "multiple" ? Boolean(question.partialMarking) : false,
+        partialMarking: Boolean(question.partialMarking),
         difficulty: ["easy", "medium", "difficult"].includes(question.difficulty)
           ? question.difficulty
           : "medium",
         bloomLevel: ["remember", "understand", "apply", "analyze", "evaluate", "create"].includes(question.bloomLevel)
           ? question.bloomLevel
           : "understand",
-        co: String(question.co || "").trim(),
-        po: String(question.po || "").trim(),
         tags: Array.isArray(question.tags)
           ? question.tags.map((tag) => String(tag).trim()).filter(Boolean).slice(0, 6)
           : []
@@ -83,7 +70,6 @@ exports.handler = async (event) => {
     const topic = String(body.topic || "").trim();
     const sourceText = String(body.sourceText || body.content || "").trim().slice(0, 24000);
     const count = cleanCount(body.count);
-    const mix = String(body.mix || "balanced").trim();
 
     if (!topic && !sourceText) {
       return {
@@ -106,7 +92,7 @@ exports.handler = async (event) => {
         {
           role: "user",
           content: `
-Create ${count} exam-ready questions for a college quiz app.
+Create ${count} quiz questions for a college quiz app.
 
 Topic:
 ${topic || "Use the source text below."}
@@ -114,20 +100,10 @@ ${topic || "Use the source text below."}
 Source text:
 ${sourceText || "No source text provided."}
 
-Requested mix:
-${mix}
-
 Rules:
 - Return only valid JSON matching the schema.
-- Allowed types: single, multiple, truefalse, fill, numerical, descriptive, case-study.
-- For single, multiple, and truefalse questions, use exactly 4 options.
-- For multiple-correct questions, include all correct option indexes in correctAnswers.
-- For fill and numerical questions, include expectedAnswer. For numerical, include tolerance if useful.
-- For descriptive and case-study questions, include answerGuidelines.
-- For case-study questions, include a short caseText plus the question text.
-- Distribute difficulty as easy, medium, and difficult when count allows.
-- Map every question to Bloom's taxonomy.
-- Add CO/PO labels when inferable, such as CO1 and PO1. Use empty strings if not inferable.
+- Use exactly 4 options per question.
+- Include single-correct and multiple-correct questions when appropriate.
 - Do not include explanations.
 - Do not copy long passages verbatim.
 - Keep every question clear and exam-ready.
@@ -152,15 +128,11 @@ Rules:
                   additionalProperties: false,
                   properties: {
                     text: { type: "string" },
-                    caseText: { type: "string" },
                     options: {
                       type: "array",
+                      minItems: 4,
                       maxItems: 4,
                       items: { type: "string" }
-                    },
-                    type: {
-                      type: "string",
-                      enum: ["single", "multiple", "truefalse", "fill", "numerical", "descriptive", "case-study"]
                     },
                     correctAnswer: { type: "integer", minimum: 0, maximum: 3 },
                     correctAnswers: {
@@ -169,9 +141,6 @@ Rules:
                       maxItems: 4,
                       items: { type: "integer", minimum: 0, maximum: 3 }
                     },
-                    expectedAnswer: { type: "string" },
-                    answerGuidelines: { type: "string" },
-                    tolerance: { type: "number" },
                     points: { type: "number" },
                     negativeMarks: { type: "number" },
                     partialMarking: { type: "boolean" },
@@ -180,8 +149,6 @@ Rules:
                       type: "string",
                       enum: ["remember", "understand", "apply", "analyze", "evaluate", "create"]
                     },
-                    co: { type: "string" },
-                    po: { type: "string" },
                     tags: {
                       type: "array",
                       maxItems: 6,
@@ -190,21 +157,14 @@ Rules:
                   },
                   required: [
                     "text",
-                    "caseText",
                     "options",
-                    "type",
                     "correctAnswer",
                     "correctAnswers",
-                    "expectedAnswer",
-                    "answerGuidelines",
-                    "tolerance",
                     "points",
                     "negativeMarks",
                     "partialMarking",
                     "difficulty",
                     "bloomLevel",
-                    "co",
-                    "po",
                     "tags"
                   ]
                 }
