@@ -1,8 +1,59 @@
-import { render, screen } from '@testing-library/react';
-import App from './App';
+import { fireEvent, render, screen } from "@testing-library/react";
+import App from "./App";
+import { isQuizAccessValid } from "./QuizApp";
 
-test('renders learn react link', () => {
+jest.mock("./firebase", () => ({ auth: {}, firestore: {}, functions: {} }));
+
+jest.mock("firebase/auth", () => ({
+  onAuthStateChanged: (_auth, callback) => {
+    callback(null);
+    return jest.fn();
+  },
+  signInWithEmailAndPassword: jest.fn(),
+  sendPasswordResetEmail: jest.fn(),
+  signOut: jest.fn()
+}));
+
+jest.mock("firebase/functions", () => ({ httpsCallable: jest.fn() }));
+
+jest.mock("firebase/firestore", () => ({
+  collection: jest.fn(),
+  getDocs: jest.fn(),
+  getDoc: jest.fn(),
+  addDoc: jest.fn(),
+  doc: jest.fn(),
+  setDoc: jest.fn(),
+  deleteDoc: jest.fn(),
+  updateDoc: jest.fn(),
+  onSnapshot: jest.fn(),
+  query: jest.fn(),
+  where: jest.fn()
+}));
+
+test("renders the secure sign-in screen for a signed-out visitor", async () => {
   render(<App />);
-  const linkElement = screen.getByText(/learn react/i);
-  expect(linkElement).toBeInTheDocument();
+
+  expect(await screen.findByRole("heading", { name: /welcome back/i })).toBeInTheDocument();
+  expect(screen.getByLabelText(/email address/i)).toBeInTheDocument();
+  expect(screen.getByLabelText(/password/i)).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: /sign in/i })).toBeInTheDocument();
+});
+
+test("accepts only the current unexpired quiz access token", () => {
+  const now = Date.parse("2026-09-02T10:00:00.000Z");
+  const quiz = {
+    accessToken: "QZ-CURRENT123",
+    accessExpiresAt: "2026-09-02T10:10:00.000Z"
+  };
+
+  expect(isQuizAccessValid(quiz, "qz-current123", now)).toBe(true);
+  expect(isQuizAccessValid(quiz, "QZ-OLDTOKEN", now)).toBe(false);
+  expect(isQuizAccessValid(quiz, "QZ-CURRENT123", Date.parse("2026-09-02T10:10:00.000Z"))).toBe(false);
+});
+
+test("opens the new-institution onboarding flow", async () => {
+  render(<App />);
+  fireEvent.click(await screen.findByRole("button", { name: /onboard a new college/i }));
+  expect(screen.getByRole("heading", { name: /start a new institution/i })).toBeInTheDocument();
+  expect(screen.getByLabelText(/college \/ institution name/i)).toBeInTheDocument();
 });

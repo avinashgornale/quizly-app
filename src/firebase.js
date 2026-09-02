@@ -4,6 +4,8 @@ import { getFirestore } from "firebase/firestore";
 
 import { getAuth } from "firebase/auth";
 
+import { getFunctions } from "firebase/functions";
+
 const firebaseConfig = {
   apiKey: "AIzaSyAEd9Q2M6uGtOWvl0hZLzrO3WlKUqTh7ww",
   authDomain: "quizly-e95be.firebaseapp.com",
@@ -18,3 +20,5 @@ const app = initializeApp(firebaseConfig);
 export const firestore = getFirestore(app);
 
 export const auth = getAuth(app);
+
+export const functions = getFunctions(app);

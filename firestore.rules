@@ -1,0 +1,145 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function profile() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
+    function hasRole(role) {
+      return signedIn() && profile().role == role;
+    }
+
+    function isStaff() {
+      return hasRole('admin') || hasRole('teacher');
+    }
+
+    function organizationId() {
+      return profile().organizationId;
+    }
+
+    function sameOrganization() {
+      return signedIn() && resource.data.organizationId == organizationId();
+    }
+
+    function newSameOrganization() {
+      return signedIn() && request.resource.data.organizationId == organizationId();
+    }
+
+    function owns(field) {
+      return signedIn() && resource.data[field] == request.auth.uid;
+    }
+
+    match /users/{userId} {
+      allow read: if signedIn() &&
+        (userId == request.auth.uid || resource.data.uid == request.auth.uid || (isStaff() && sameOrganization()));
+      allow create: if hasRole('admin') && newSameOrganization();
+      allow delete: if hasRole('admin') && sameOrganization();
+      allow update: if (hasRole('admin') && sameOrganization() && newSameOrganization()) ||
+        (userId == request.auth.uid &&
+         request.resource.data.organizationId == resource.data.organizationId &&
+         request.resource.data.role == resource.data.role &&
+         request.resource.data.email == resource.data.email &&
+         request.resource.data.uid == resource.data.uid);
+    }
+
+    match /courses/{courseId} {
+      allow read: if sameOrganization();
+      allow create: if newSameOrganization() && (hasRole('admin') ||
+        (hasRole('teacher') && request.resource.data.teacherId == request.auth.uid));
+      allow update, delete: if sameOrganization() && newSameOrganization() && (hasRole('admin') ||
+        (hasRole('teacher') && resource.data.teacherId == request.auth.uid));
+    }
+
+    match /quizzes/{quizId} {
+      allow read: if sameOrganization();
+      allow create: if newSameOrganization() && (hasRole('admin') ||
+        (hasRole('teacher') && request.resource.data.teacherId == request.auth.uid));
+      allow update, delete: if sameOrganization() && newSameOrganization() && (hasRole('admin') ||
+        (hasRole('teacher') && resource.data.teacherId == request.auth.uid));
+    }
+
+    match /enrollments/{enrollmentId} {
+      allow read: if sameOrganization() && (isStaff() || owns('studentId'));
+      allow create: if newSameOrganization() && request.resource.data.studentId == request.auth.uid;
+      allow update, delete: if sameOrganization() && newSameOrganization() && (isStaff() || owns('studentId'));
+    }
+
+    match /attempts/{attemptId} {
+      allow read: if sameOrganization() && (isStaff() || owns('studentId'));
+      allow create: if newSameOrganization() && request.resource.data.studentId == request.auth.uid;
+      allow update: if sameOrganization() && newSameOrganization() && isStaff();
+      allow delete: if sameOrganization() && isStaff();
+    }
+
+    match /quizSessions/{sessionId} {
+      allow read: if sameOrganization() && (isStaff() || owns('studentId'));
+      allow create: if newSameOrganization() && request.resource.data.studentId == request.auth.uid;
+      allow update, delete: if sameOrganization() && newSameOrganization() && (isStaff() || owns('studentId'));
+    }
+
+    match /integrityLogs/{logId} {
+      allow read: if sameOrganization() && (isStaff() || owns('studentId'));
+      allow create: if newSameOrganization() && request.resource.data.studentId == request.auth.uid;
+      allow update, delete: if sameOrganization() && newSameOrganization() && hasRole('admin');
+    }
+
+    match /settings/{settingId} {
+      allow read: if sameOrganization();
+      allow create: if hasRole('admin') && newSameOrganization();
+      allow update, delete: if hasRole('admin') && sameOrganization() && newSameOrganization();
+    }
+
+    match /auditLogs/{logId} {
+      allow read: if hasRole('admin') && sameOrganization();
+      allow write: if false;
+    }
+
+    match /organizations/{organizationDocumentId} {
+      allow read: if signedIn() && organizationDocumentId == organizationId();
+      allow write: if false;
+    }
+
+    match /memberships/{membershipId} {
+      allow read: if signedIn() && resource.data.organizationId == organizationId() &&
+        (resource.data.userId == request.auth.uid || hasRole('admin'));
+      allow write: if false;
+    }
+
+    match /departments/{departmentId} {
+      allow read: if sameOrganization();
+      allow create: if hasRole('admin') && newSameOrganization();
+      allow update, delete: if hasRole('admin') && sameOrganization() && newSameOrganization();
+    }
+
+    match /programs/{programId} {
+      allow read: if sameOrganization();
+      allow create: if hasRole('admin') && newSameOrganization();
+      allow update, delete: if hasRole('admin') && sameOrganization() && newSameOrganization();
+    }
+
+    match /batches/{batchId} {
+      allow read: if sameOrganization();
+      allow create: if hasRole('admin') && newSameOrganization();
+      allow update, delete: if hasRole('admin') && sameOrganization() && newSameOrganization();
+    }
+
+    match /academicTerms/{termId} {
+      allow read: if sameOrganization();
+      allow create: if hasRole('admin') && newSameOrganization();
+      allow update, delete: if hasRole('admin') && sameOrganization() && newSameOrganization();
+    }
+
+    match /invitations/{invitationId} {
+      allow read, write: if false;
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

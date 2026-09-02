@@ -1,14 +1,20 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useId, useCallback } from "react";
 
-import { auth, firestore } from "./firebase";
+import { auth, firestore, functions } from "./firebase";
 
 import {
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
   onAuthStateChanged,
   sendPasswordResetEmail,
+  sendEmailVerification,
+  updatePassword,
+  deleteUser as deleteAuthUser,
+  reload,
   signOut
 } from "firebase/auth";
+
+import { httpsCallable } from "firebase/functions";
 
 import {
   collection,
@@ -19,7 +25,9 @@ import {
   setDoc,
   deleteDoc,
   updateDoc,
-  onSnapshot
+  onSnapshot,
+  query,
+  where
 } from "firebase/firestore";
 
 const genId = () => Math.random().toString(36).substr(2, 9);
@@ -101,6 +109,16 @@ const prepareStudentQuiz = (quiz) => {
 
 const getQuizMaximumScore = (quiz) =>
   (quiz?.questions || []).reduce((total, question) => total + (Number(question.points) || 1), 0);
+export const isQuizAccessValid = (quiz, token, now = Date.now()) => {
+  const expiresAt = new Date(quiz?.accessExpiresAt || 0).getTime();
+  return Boolean(
+    quiz?.accessToken &&
+    token &&
+    quiz.accessToken.toUpperCase() === String(token).trim().toUpperCase() &&
+    Number.isFinite(expiresAt) &&
+    expiresAt > now
+  );
+};
 const formatDuration = (seconds) => {
   const total = Math.max(0, Number(seconds) || 0);
   const minutes = Math.floor(total / 60);
@@ -167,28 +185,40 @@ const Modal = ({ title, onClose, children, wide }) => (
   </div>
 );
 
-const Input = ({ label, ...props }) => (
-  <div style={{ marginBottom: 16 }}>
-   {label && <label style={{ display: "block", marginBottom: 6, fontWeight: 600, fontSize: 13, color: "#374151" }}>{label}</label>}
-    <input {...props} style={{ width: "100%", padding: "9px 12px", borderRadius: 8, border: "1.5px solid #d1d5db", fontSize: 14, fontFamily: "inherit", boxSizing: "border-box", ...(props.style||{}) }} />
-  </div>
-);
+const Input = ({ label, id, ...props }) => {
+  const generatedId = useId();
+  const controlId = id || generatedId;
+  return (
+    <div style={{ marginBottom: 16 }}>
+      {label && <label htmlFor={controlId} style={{ display: "block", marginBottom: 6, fontWeight: 600, fontSize: 13, color: "#374151" }}>{label}</label>}
+      <input id={controlId} {...props} style={{ width: "100%", padding: "9px 12px", borderRadius: 8, border: "1.5px solid #d1d5db", fontSize: 14, fontFamily: "inherit", boxSizing: "border-box", ...(props.style||{}) }} />
+    </div>
+  );
+};
 
-const Textarea = ({ label, ...props }) => (
-  <div style={{ marginBottom: 16 }}>
-   {label && <label style={{ display: "block", marginBottom: 6, fontWeight: 600, fontSize: 13, color: "#374151" }}>{label}</label>}
-    <textarea {...props} style={{ width: "100%", padding: "9px 12px", borderRadius: 8, border: "1.5px solid #d1d5db", fontSize: 14, fontFamily: "inherit", boxSizing: "border-box", resize: "vertical", minHeight: 80, ...(props.style||{}) }} />
-  </div>
-);
+const Textarea = ({ label, id, ...props }) => {
+  const generatedId = useId();
+  const controlId = id || generatedId;
+  return (
+    <div style={{ marginBottom: 16 }}>
+      {label && <label htmlFor={controlId} style={{ display: "block", marginBottom: 6, fontWeight: 600, fontSize: 13, color: "#374151" }}>{label}</label>}
+      <textarea id={controlId} {...props} style={{ width: "100%", padding: "9px 12px", borderRadius: 8, border: "1.5px solid #d1d5db", fontSize: 14, fontFamily: "inherit", boxSizing: "border-box", resize: "vertical", minHeight: 80, ...(props.style||{}) }} />
+    </div>
+  );
+};
 
-const Select = ({ label, options, ...props }) => (
-  <div style={{ marginBottom: 16 }}>
-   {label && <label style={{ display: "block", marginBottom: 6, fontWeight: 600, fontSize: 13, color: "#374151" }}>{label}</label>}
-    <select {...props} style={{ width: "100%", padding: "9px 12px", borderRadius: 8, border: "1.5px solid #d1d5db", fontSize: 14, fontFamily: "inherit", background: "#fff", boxSizing: "border-box" }}>
-     {options.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-    </select>
-  </div>
-);
+const Select = ({ label, options, id, ...props }) => {
+  const generatedId = useId();
+  const controlId = id || generatedId;
+  return (
+    <div style={{ marginBottom: 16 }}>
+      {label && <label htmlFor={controlId} style={{ display: "block", marginBottom: 6, fontWeight: 600, fontSize: 13, color: "#374151" }}>{label}</label>}
+      <select id={controlId} {...props} style={{ width: "100%", padding: "9px 12px", borderRadius: 8, border: "1.5px solid #d1d5db", fontSize: 14, fontFamily: "inherit", background: "#fff", boxSizing: "border-box" }}>
+        {options.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+      </select>
+    </div>
+  );
+};
 
 const Stat = ({ label, value, icon, color = "#1e293b" }) => (
   <Card style={{ flex: 1, minWidth: 120 }}>
@@ -198,22 +228,15 @@ const Stat = ({ label, value, icon, color = "#1e293b" }) => (
   </Card>
 );
 
-//  Credentials Panel (admin only, post-login) 
-const maskEmail = (email) => {
-  const [local, domain] = email.split("@");
-  return local.slice(0, 2) + "*".repeat(Math.max(3, local.length - 2)) + "@" + domain;
+const maskEmail = (email = "") => {
+  const [local = "", domain = ""] = String(email).split("@");
+  if (!domain) return local;
+  return `${local.slice(0, 2)}${"*".repeat(Math.max(3, local.length - 2))}@${domain}`;
 };
 
+// Account directory. Passwords are managed exclusively by Firebase Authentication.
 const CredentialsPanel = ({ db }) => {
-  const [revealed, setRevealed] = useState({});
   const [activeRole, setActiveRole] = useState("teacher");
-
-  const toggle = (id) => setRevealed(prev => ({ ...prev, [id]: !prev[id] }));
-  const revealAll = () => {
-    const ids = db.users.filter(u => u.role === activeRole).reduce((acc, u) => ({ ...acc, [u.id]: true }), {});
-    setRevealed(ids);
-  };
-  const hideAll = () => setRevealed({});
 
   const users = db.users.filter(u => u.role === activeRole);
 
@@ -228,22 +251,16 @@ const CredentialsPanel = ({ db }) => {
 
   return (
     <>
-     {/* Warning banner */}
-      <div style={{ background: "#fef3c7", border: "1.5px solid #fbbf24", borderRadius: 10, padding: "10px 16px", marginBottom: 24, display: "flex", alignItems: "center", gap: 10 }}>
-        <span style={{ fontSize: 18 }}></span>
-        <span style={{ fontSize: 13, color: "#92400e", fontWeight: 500 }}>
-          This section is visible to admins only. Login credentials are sensitive  handle with care.
+      <div style={{ background: "#eff6ff", border: "1.5px solid #93c5fd", borderRadius: 10, padding: "10px 16px", marginBottom: 24, display: "flex", alignItems: "center", gap: 10 }}>
+        <span style={{ fontSize: 13, color: "#1e3a8a", fontWeight: 500 }}>
+          Passwords are never stored or displayed. Users can use “Reset Password” on the sign-in page if they lose access.
         </span>
       </div>
 
      {/* Role tabs */}
       <div style={{ display: "flex", gap: 10, marginBottom: 20, alignItems: "center" }}>
-        <button style={tabStyle("teacher")} onClick={() => { setActiveRole("teacher"); setRevealed({}); }}> Teachers</button>
-        <button style={tabStyle("student")} onClick={() => { setActiveRole("student"); setRevealed({}); }}> Students</button>
-        <div style={{ marginLeft: "auto", display: "flex", gap: 8 }}>
-          <Btn size="sm" variant="ghost" onClick={revealAll}> Show All</Btn>
-          <Btn size="sm" variant="ghost" onClick={hideAll}> Hide All</Btn>
-        </div>
+        <button style={tabStyle("teacher")} onClick={() => setActiveRole("teacher")}>Teachers</button>
+        <button style={tabStyle("student")} onClick={() => setActiveRole("student")}>Students</button>
       </div>
 
      {/* Table */}
@@ -251,36 +268,20 @@ const CredentialsPanel = ({ db }) => {
         <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
           <thead>
             <tr style={{ background: "#f8fafc", borderBottom: "1.5px solid #e2e8f0" }}>
-             {["Name", "Email", "Password", "Role", "Reveal"].map(h => (
+             {["Name", "Email", "Role", "Account ID"].map(h => (
                 <th key={h} style={{ padding: "11px 16px", textAlign: "left", fontWeight: 700, fontSize: 12, color: "#64748b", textTransform: "uppercase", letterSpacing: 0.5 }}>{h}</th>
               ))}
             </tr>
           </thead>
           <tbody>
-           {users.map((u, i) => {
-              const show = !!revealed[u.id];
-              return (
-                <tr key={u.id} style={{ borderBottom: i < users.length - 1 ? "1px solid #f1f5f9" : "none", background: show ? "#f0fdf4" : "#fff", transition: "background .2s" }}>
+           {users.map((u, i) => (
+                <tr key={u.id} style={{ borderBottom: i < users.length - 1 ? "1px solid #f1f5f9" : "none" }}>
                   <td style={{ padding: "12px 16px", fontWeight: 600, color: "#1e293b" }}>{u.name}</td>
-                  <td style={{ padding: "12px 16px", fontFamily: "monospace", fontSize: 13, color: show ? "#0f172a" : "#94a3b8" }}>
-                   {show ? u.email : maskEmail(u.email)}
-                  </td>
-                  <td style={{ padding: "12px 16px", fontFamily: "monospace", fontSize: 13, color: show ? "#0f172a" : "#94a3b8" }}>
-                   {show ? u.password : ""}
-                  </td>
+                  <td style={{ padding: "12px 16px", fontSize: 13, color: "#475569" }}>{u.email}</td>
                   <td style={{ padding: "12px 16px" }}><Badge role={u.role} /></td>
-                  <td style={{ padding: "12px 16px" }}>
-                    <button
-                      onClick={() => toggle(u.id)}
-                      title={show ? "Hide credentials" : "Reveal credentials"}
-                      style={{ background: show ? "#dcfce7" : "#f1f5f9", border: "none", borderRadius: 6, padding: "5px 12px", cursor: "pointer", fontSize: 13, fontWeight: 600, color: show ? "#059669" : "#475569", transition: "all .15s" }}
-                    >
-                     {show ? " Hide" : " Show"}
-                    </button>
-                  </td>
+                  <td style={{ padding: "12px 16px", fontFamily: "monospace", fontSize: 12, color: "#64748b" }}>{u.id}</td>
                 </tr>
-              );
-            })}
+            ))}
           </tbody>
         </table>
       </Card>
@@ -289,12 +290,54 @@ const CredentialsPanel = ({ db }) => {
 };
 
 //  QR Code Modal 
-const QRModal = ({ title, code, description, onClose }) => {
+const QRModal = ({ title, code, quizId, description, onClose }) => {
   const [copied, setCopied] = useState(false);
+  const [durationMinutes, setDurationMinutes] = useState(10);
+  const [accessCode, setAccessCode] = useState(code || "");
+  const [expiresAt, setExpiresAt] = useState(null);
+  const [remainingSeconds, setRemainingSeconds] = useState(null);
+  const [accessLoading, setAccessLoading] = useState(Boolean(quizId));
+  const [accessError, setAccessError] = useState("");
   const canvasRef = useRef(null);
+  const timedAccess = Boolean(quizId);
+  const displayCode = timedAccess ? accessCode : code;
+
+  const rotateAccess = useCallback(async (minutes = durationMinutes) => {
+    if (!quizId) return;
+    setAccessLoading(true);
+    setAccessError("");
+    try {
+      const rotateQuizAccess = httpsCallable(functions, "rotateQuizAccess");
+      const response = await rotateQuizAccess({ quizId, durationMinutes: Number(minutes) || 10 });
+      setAccessCode(response.data.token);
+      setExpiresAt(response.data.expiresAt);
+      setRemainingSeconds(Math.max(0, Math.ceil((new Date(response.data.expiresAt).getTime() - Date.now()) / 1000)));
+    } catch (error) {
+      setAccessError(error.message || "Unable to generate timed quiz access.");
+    } finally {
+      setAccessLoading(false);
+    }
+  }, [quizId, durationMinutes]);
 
   useEffect(() => {
-    if (!canvasRef.current) return;
+    if (timedAccess) rotateAccess();
+  }, [timedAccess, rotateAccess]);
+
+  useEffect(() => {
+    if (!expiresAt) return undefined;
+    const update = () => setRemainingSeconds(Math.max(0, Math.ceil((new Date(expiresAt).getTime() - Date.now()) / 1000)));
+    update();
+    const interval = window.setInterval(update, 1000);
+    const refreshDelay = Math.max(0, new Date(expiresAt).getTime() - Date.now());
+    const refresh = window.setTimeout(() => rotateAccess(), refreshDelay + 250);
+    return () => {
+      window.clearInterval(interval);
+      window.clearTimeout(refresh);
+    };
+  }, [expiresAt, rotateAccess]);
+
+  useEffect(() => {
+    if (!canvasRef.current || !displayCode) return;
     if (window.QRious) {
       generateQR();
     } else {
@@ -310,16 +353,16 @@ const QRModal = ({ title, code, description, onClose }) => {
         if (window.QRious) {
           new window.QRious({
             element: canvasRef.current,
-            value: `https://quizly-live-app.netlify.app/?code=${code}`,
+            value: `${window.location.origin}/?code=${encodeURIComponent(displayCode)}`,
             size: 280, level: 'H', background: '#ffffff', foreground: '#0f172a',
           });
         }
       } catch (e) { console.error('QR Generation Error:', e); }
     }
-  }, [code]);
+  }, [displayCode]);
 
   const copy = () => {
-    navigator.clipboard?.writeText(code).catch(() => {});
+    navigator.clipboard?.writeText(displayCode).catch(() => {});
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
@@ -328,19 +371,41 @@ const QRModal = ({ title, code, description, onClose }) => {
     <Modal title={`QR Code  ${title}`} onClose={onClose}>
       <div style={{ textAlign: "center" }}>
         <p style={{ color: "#64748b", fontSize: 14, margin: "0 0 20px" }}>{description}</p>
+        {timedAccess && (
+          <div style={{ display: "flex", gap: 10, alignItems: "end", justifyContent: "center", marginBottom: 18 }}>
+            <Select label="QR active duration" value={durationMinutes} onChange={event => setDurationMinutes(Number(event.target.value))} options={[
+              { value: 5, label: "5 minutes" },
+              { value: 10, label: "10 minutes" },
+              { value: 15, label: "15 minutes" },
+              { value: 30, label: "30 minutes" },
+              { value: 60, label: "1 hour" }
+            ]} />
+            <Btn variant="purple" disabled={accessLoading} onClick={() => rotateAccess(durationMinutes)} style={{ marginBottom: 16 }}>
+              {accessLoading ? "Generating..." : "Generate New QR"}
+            </Btn>
+          </div>
+        )}
+        {accessError && <p style={{ color: "#dc2626", fontSize: 13 }}>{accessError}</p>}
         <div style={{ display: "inline-block", padding: 20, background: "#fff", borderRadius: 16, border: "3px solid #0f172a", marginBottom: 24, boxShadow: "0 10px 30px rgba(0,0,0,.15)" }}>
           <canvas ref={canvasRef} style={{ display: "block", borderRadius: 8 }} />
         </div>
         <div style={{ background: "#0f172a", borderRadius: 12, padding: "16px 24px", marginBottom: 16, display: "inline-flex", alignItems: "center", gap: 16 }}>
           <div>
             <div style={{ fontSize: 11, color: "#64748b", fontWeight: 700, textTransform: "uppercase", letterSpacing: 1, marginBottom: 4 }}>Join Code</div>
-            <div style={{ fontSize: 26, fontWeight: 900, color: "#f8fafc", letterSpacing: 3, fontFamily: "monospace" }}>{code}</div>
+            <div style={{ fontSize: 22, fontWeight: 900, color: "#f8fafc", letterSpacing: 2, fontFamily: "monospace" }}>{accessLoading && !displayCode ? "Generating..." : displayCode}</div>
+            {timedAccess && expiresAt && (
+              <div style={{ fontSize: 12, color: remainingSeconds > 0 ? "#86efac" : "#fca5a5", marginTop: 5 }}>
+                {remainingSeconds > 0 ? `Expires in ${formatDuration(remainingSeconds)}` : "Expired — generating a new QR..."}
+              </div>
+            )}
           </div>
           <button onClick={copy} style={{ background: copied ? "#059669" : "#1e40af", border: "none", borderRadius: 8, color: "#fff", padding: "8px 14px", cursor: "pointer", fontFamily: "inherit", fontWeight: 600, fontSize: 13, transition: "all .2s" }}>
            {copied ? " Copied" : "Copy"}
           </button>
         </div>
-                <p style={{ fontSize: 13, color: "#94a3b8", margin: "0 0 18px" }}>Students scan this QR code or enter the code manually to access this content.</p>
+        <p style={{ fontSize: 13, color: "#94a3b8", margin: "0 0 18px" }}>
+          {timedAccess ? "This QR rotates automatically when it expires. Previously issued QR images stop working." : "Students scan this QR code or enter the code manually to access this content."}
+        </p>
         <Btn variant="ghost" onClick={onClose} style={{ justifyContent: "center" }}>Close</Btn>
       </div>
     </Modal>
@@ -380,6 +445,15 @@ const AdminApp = ({ db, setDb, user, onLogout }) => {
   const [form, setForm]   = useState({});
   const [err, setErr]     = useState("");
   const [qrTarget, setQrTarget] = useState(null);
+  const [invitationForm, setInvitationForm] = useState({ name: "", email: "", role: "teacher" });
+  const [invitationLinks, setInvitationLinks] = useState([]);
+  const [bulkCsv, setBulkCsv] = useState("name,email,role,usn,department,program,batch\n");
+  const [setupError, setSetupError] = useState("");
+  const [setupWorking, setSetupWorking] = useState(false);
+  const [departmentName, setDepartmentName] = useState("");
+  const [programName, setProgramName] = useState("");
+  const [batchName, setBatchName] = useState("");
+  const [termForm, setTermForm] = useState({ name: "", startsAt: "", endsAt: "" });
 
   const teachers = db.users.filter(u => u.role === "teacher");
 
@@ -391,18 +465,111 @@ const AdminApp = ({ db, setDb, user, onLogout }) => {
    { id: "quizzes",      label: "All Quizzes",   icon: "" },
    { id: "integrity",    label: "Exam Integrity", icon: "" },
    { id: "institution",  label: "Institution", icon: "" },
+   { id: "onboarding", label: "Onboarding", icon: "" },
     ...(user.role === "admin"
-      ? [{ id: "credentials", label: "Credentials", icon: "" }]
+      ? [{ id: "credentials", label: "Accounts", icon: "" }]
       : []),
   ];
 
   const openModal = (type, data = {}) => { setModal(type); setForm(data); setErr(""); };
   const closeModal = () => { setModal(null); setForm({}); setErr(""); };
-  const institution = db.settings.find(item => item.id === "institution") || {};
+  const institution = db.settings.find(item => item.type === "institution" || item.id === "institution" || item.id.endsWith("_institution")) || {};
+  const organization = db.organizations[0] || {};
+
+  const invitationUrl = token => `${window.location.origin}${window.location.pathname}?invite=${encodeURIComponent(token)}`;
+
+  const inviteMember = async () => {
+    if (!invitationForm.email.trim()) return setSetupError("Enter an email address.");
+    setSetupWorking(true);
+    setSetupError("");
+    try {
+      const createInvitation = httpsCallable(functions, "createInvitation");
+      const result = await createInvitation({ ...invitationForm, inviteBaseUrl: `${window.location.origin}${window.location.pathname}` });
+      setInvitationLinks(previous => [...previous, { email: invitationForm.email.trim(), url: invitationUrl(result.data.token) }]);
+      setInvitationForm({ name: "", email: "", role: invitationForm.role });
+    } catch (error) {
+      setSetupError(error.message);
+    } finally {
+      setSetupWorking(false);
+    }
+  };
+
+  const importInvitations = async () => {
+    const lines = bulkCsv.split(/\r?\n/).filter(line => line.trim());
+    if (lines.length < 2) return setSetupError("Paste a CSV header and at least one user row.");
+    const headers = lines[0].split(",").map(value => value.trim().toLowerCase());
+    const rows = lines.slice(1).map(line => {
+      const values = line.split(",").map(value => value.trim());
+      return headers.reduce((record, header, index) => ({ ...record, [header]: values[index] || "" }), {});
+    });
+    setSetupWorking(true);
+    setSetupError("");
+    try {
+      const bulkCreateInvitations = httpsCallable(functions, "bulkCreateInvitations");
+      const result = await bulkCreateInvitations({ rows, inviteBaseUrl: `${window.location.origin}${window.location.pathname}` });
+      setInvitationLinks(previous => [...previous, ...result.data.invitations.map(item => ({ email: item.email, url: invitationUrl(item.token) }))]);
+      if (result.data.errors.length) setSetupError(`${result.data.errors.length} row(s) could not be imported.`);
+    } catch (error) {
+      setSetupError(error.message);
+    } finally {
+      setSetupWorking(false);
+    }
+  };
+
+  const addDepartment = async () => {
+    if (!departmentName.trim()) return;
+    await addDoc(collection(firestore, "departments"), {
+      organizationId: user.organizationId,
+      name: departmentName.trim(),
+      status: "active",
+      createdAt: new Date().toISOString()
+    });
+    setDepartmentName("");
+  };
+
+  const addAcademicTerm = async () => {
+    if (!termForm.name.trim()) return;
+    await addDoc(collection(firestore, "academicTerms"), {
+      organizationId: user.organizationId,
+      name: termForm.name.trim(),
+      startsAt: termForm.startsAt,
+      endsAt: termForm.endsAt,
+      status: "active",
+      createdAt: new Date().toISOString()
+    });
+    setTermForm({ name: "", startsAt: "", endsAt: "" });
+  };
+
+  const addCatalogItem = async (collectionName, name, clear) => {
+    if (!name.trim()) return;
+    await addDoc(collection(firestore, collectionName), {
+      organizationId: user.organizationId,
+      name: name.trim(),
+      status: "active",
+      createdAt: new Date().toISOString()
+    });
+    clear("");
+  };
+
+  const activateWorkspace = async () => {
+    setSetupWorking(true);
+    setSetupError("");
+    try {
+      const activateOrganization = httpsCallable(functions, "activateOrganization");
+      await activateOrganization({});
+      alert("Institution activated successfully.");
+    } catch (error) {
+      setSetupError(error.message);
+    } finally {
+      setSetupWorking(false);
+    }
+  };
 
   const saveInstitution = async () => {
     try {
       const data = {
+        organizationId: user.organizationId,
+        type: "institution",
         college: form.college || "",
         department: form.department || "",
         address: form.address || "",
@@ -411,8 +578,9 @@ const AdminApp = ({ db, setDb, user, onLogout }) => {
         logoUrl: form.logoUrl || "",
         updatedAt: new Date().toISOString()
       };
-      await setDoc(doc(firestore, "settings", "institution"), data, { merge: true });
-      setDb(d => ({ ...d, settings: [...d.settings.filter(item => item.id !== "institution"), { id: "institution", ...data }] }));
+      const institutionId = `${user.organizationId}_institution`;
+      await setDoc(doc(firestore, "settings", institutionId), data, { merge: true });
+      setDb(d => ({ ...d, settings: [...d.settings.filter(item => item.type !== "institution" && item.id !== "institution" && !item.id.endsWith("_institution")), { id: institutionId, ...data }] }));
       closeModal();
     } catch (error) {
       alert(error.message);
@@ -436,12 +604,8 @@ const AdminApp = ({ db, setDb, user, onLogout }) => {
       if (form.id) {
         await setDoc(doc(firestore, "users", form.id), profile, { merge: true });
       } else {
-        const cred = await createUserWithEmailAndPassword(auth, form.email, form.password);
-        await setDoc(doc(firestore, "users", cred.user.uid), {
-          ...profile,
-          uid: cred.user.uid,
-          createdAt: new Date().toISOString()
-        });
+        const createManagedUser = httpsCallable(functions, "createManagedUser");
+        await createManagedUser({ ...profile, password: form.password });
       }
       closeModal();
     } catch (error) {
@@ -453,7 +617,8 @@ const AdminApp = ({ db, setDb, user, onLogout }) => {
     if (!window.confirm("Delete this user profile?")) return;
 
     try {
-      await deleteDoc(doc(firestore, "users", id));
+      const deleteManagedUser = httpsCallable(functions, "deleteManagedUser");
+      await deleteManagedUser({ uid: id });
       setDb(d => ({ ...d, users: d.users.filter(u => u.id !== id) }));
     } catch (err) {
       alert(err.message);
@@ -465,6 +630,7 @@ const AdminApp = ({ db, setDb, user, onLogout }) => {
 
     try {
       const courseData = {
+        organizationId: user.organizationId,
         name: form.name,
         description: form.description || "",
         teacherId: form.teacherId,
@@ -636,10 +802,10 @@ const AdminApp = ({ db, setDb, user, onLogout }) => {
                             <span> {course?.name}</span>
                             <span> {q.questions.length} Qs</span>
                             <span> {attempts.length} attempts{avgScore !== null ? `  Avg ${avgScore}%` : ""}</span>
-                            <span style={{ background: "#f1f5f9", border: "1px solid #e2e8f0", borderRadius: 6, padding: "2px 8px", fontFamily: "monospace", fontWeight: 700, color: "#475569" }}>{q.joinCode}</span>
+                            <span style={{ background: "#f1f5f9", border: "1px solid #e2e8f0", borderRadius: 6, padding: "2px 8px", fontWeight: 700, color: "#475569" }}>Timed QR access</span>
                           </div>
                         </div>
-                        <Btn size="sm" variant="purple" onClick={() => setQrTarget({ title: q.title, code: q.joinCode, description: `Share this QR so students can directly access the quiz "${q.title}"` })}> QR Code</Btn>
+                        <Btn size="sm" variant="purple" onClick={() => setQrTarget({ title: q.title, quizId: q.id, description: `Share this temporary QR so students can access the quiz "${q.title}"` })}> QR Code</Btn>
                       </div>
                     </Card>
                   );
@@ -685,6 +851,81 @@ const AdminApp = ({ db, setDb, user, onLogout }) => {
             </>
           );
         })()}
+
+       {tab === "onboarding" && (
+        <div>
+          <h2 style={{ margin: "0 0 6px" }}>Institution onboarding</h2>
+          <p style={{ color: "#64748b", marginTop: 0 }}>Complete the setup checklist, invite members, and activate the pilot workspace.</p>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(210px,1fr))", gap: 12, marginBottom: 20 }}>
+            {[
+              ["Institution profile", Boolean(institution.college)],
+              ["Department", db.departments.length > 0],
+              ["Academic term", db.academicTerms.length > 0],
+              ["Faculty", teachers.length > 0],
+              ["Students", db.users.some(item => item.role === "student")],
+              ["Sample quiz", db.quizzes.length > 0]
+            ].map(([label, complete]) => <Card key={label} style={{ padding: 16, borderColor: complete ? "#86efac" : "#fde68a" }}>
+              <div style={{ fontWeight: 700 }}>{complete ? "✓" : "○"} {label}</div>
+              <div style={{ fontSize: 12, color: complete ? "#15803d" : "#92400e", marginTop: 4 }}>{complete ? "Complete" : "Required"}</div>
+            </Card>)}
+          </div>
+
+          <Card style={{ marginBottom: 18 }}>
+            <h3 style={{ marginTop: 0 }}>Departments</h3>
+            <div style={{ display: "flex", gap: 10 }}><input value={departmentName} onChange={event => setDepartmentName(event.target.value)} placeholder="Department name" style={{ flex: 1, padding: 10, border: "1px solid #cbd5e1", borderRadius: 8 }} /><Btn onClick={addDepartment}>Add</Btn></div>
+            <div style={{ marginTop: 12, display: "flex", gap: 8, flexWrap: "wrap" }}>{db.departments.map(department => <span key={department.id} style={{ background: "#eff6ff", padding: "6px 10px", borderRadius: 20 }}>{department.name} <button aria-label={`Delete ${department.name}`} onClick={() => deleteDoc(doc(firestore, "departments", department.id))} style={{ border: 0, background: "transparent", cursor: "pointer" }}>×</button></span>)}</div>
+          </Card>
+
+          <Card style={{ marginBottom: 18 }}>
+            <h3 style={{ marginTop: 0 }}>Programs and batches</h3>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr auto 1fr auto", gap: 10 }}>
+              <input value={programName} onChange={event => setProgramName(event.target.value)} placeholder="Program, e.g. B.Tech CSE" style={{ padding: 10, border: "1px solid #cbd5e1", borderRadius: 8 }} />
+              <Btn onClick={() => addCatalogItem("programs", programName, setProgramName)}>Add program</Btn>
+              <input value={batchName} onChange={event => setBatchName(event.target.value)} placeholder="Batch, e.g. 2026" style={{ padding: 10, border: "1px solid #cbd5e1", borderRadius: 8 }} />
+              <Btn onClick={() => addCatalogItem("batches", batchName, setBatchName)}>Add batch</Btn>
+            </div>
+            <div style={{ marginTop: 12 }}><strong>Programs:</strong> {db.programs.map(item => item.name).join(", ") || "None"}</div>
+            <div style={{ marginTop: 8 }}><strong>Batches:</strong> {db.batches.map(item => item.name).join(", ") || "None"}</div>
+          </Card>
+
+          <Card style={{ marginBottom: 18 }}>
+            <h3 style={{ marginTop: 0 }}>Academic term</h3>
+            <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr auto", gap: 10, alignItems: "end" }}>
+              <Input label="Term name" value={termForm.name} onChange={event => setTermForm({ ...termForm, name: event.target.value })} />
+              <Input label="Starts" type="date" value={termForm.startsAt} onChange={event => setTermForm({ ...termForm, startsAt: event.target.value })} />
+              <Input label="Ends" type="date" value={termForm.endsAt} onChange={event => setTermForm({ ...termForm, endsAt: event.target.value })} />
+              <Btn onClick={addAcademicTerm} style={{ marginBottom: 16 }}>Add</Btn>
+            </div>
+            {db.academicTerms.map(term => <div key={term.id} style={{ display: "flex", justifyContent: "space-between", padding: "8px 0", borderTop: "1px solid #e2e8f0" }}><span>{term.name} · {term.startsAt || "No start"} to {term.endsAt || "No end"}</span><button onClick={() => deleteDoc(doc(firestore, "academicTerms", term.id))}>Delete</button></div>)}
+          </Card>
+
+          <Card style={{ marginBottom: 18 }}>
+            <h3 style={{ marginTop: 0 }}>Invite one person</h3>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1.3fr 160px auto", gap: 10, alignItems: "end" }}>
+              <Input label="Name" value={invitationForm.name} onChange={event => setInvitationForm({ ...invitationForm, name: event.target.value })} />
+              <Input label="Email" type="email" value={invitationForm.email} onChange={event => setInvitationForm({ ...invitationForm, email: event.target.value })} />
+              <Select label="Role" value={invitationForm.role} onChange={event => setInvitationForm({ ...invitationForm, role: event.target.value })} options={[{ value: "teacher", label: "Faculty" }, { value: "student", label: "Student" }]} />
+              <Btn disabled={setupWorking} onClick={inviteMember} style={{ marginBottom: 16 }}>Create invite</Btn>
+            </div>
+          </Card>
+
+          <Card style={{ marginBottom: 18 }}>
+            <h3 style={{ marginTop: 0 }}>Bulk invitation import</h3>
+            <p style={{ color: "#64748b", fontSize: 13 }}>CSV columns: name, email, role, usn, department, program, batch. Up to 500 rows.</p>
+            <Textarea value={bulkCsv} onChange={event => setBulkCsv(event.target.value)} rows={8} />
+            <Btn disabled={setupWorking} onClick={importInvitations}>Create invitation links</Btn>
+          </Card>
+
+          {invitationLinks.length > 0 && <Card style={{ marginBottom: 18 }}><h3 style={{ marginTop: 0 }}>Invitation links</h3>{invitationLinks.map(item => <div key={`${item.email}-${item.url}`} style={{ marginBottom: 10 }}><strong>{item.email}</strong><div style={{ display: "flex", gap: 8 }}><input readOnly value={item.url} style={{ flex: 1, padding: 8 }} /><Btn size="sm" onClick={() => navigator.clipboard?.writeText(item.url)}>Copy</Btn></div></div>)}</Card>}
+
+          {setupError && <p style={{ color: "#dc2626" }}>{setupError}</p>}
+          <Card style={{ background: organization.status === "active" ? "#f0fdf4" : "#faf5ff" }}>
+            <h3 style={{ marginTop: 0 }}>Pilot subscription</h3>
+            <p>Plan: <strong>{organization.subscription?.plan || "pilot"}</strong> · Status: <strong>{organization.subscription?.status || "trialing"}</strong> · Students: {db.users.filter(item => item.role === "student").length}/{organization.subscription?.studentLimit || 1000}</p>
+            <Btn disabled={setupWorking || organization.status === "active"} onClick={activateWorkspace}>{organization.status === "active" ? "Institution active" : "Activate institution"}</Btn>
+          </Card>
+        </div>
+       )}
 
        {tab === "institution" && (
           <>
@@ -765,7 +1006,7 @@ const AdminApp = ({ db, setDb, user, onLogout }) => {
         </Modal>
       )}
 
-     {qrTarget && <QRModal title={qrTarget.title} code={qrTarget.code} description={qrTarget.description} onClose={() => setQrTarget(null)} />}
+     {qrTarget && <QRModal title={qrTarget.title} code={qrTarget.code} quizId={qrTarget.quizId} description={qrTarget.description} onClose={() => setQrTarget(null)} />}
     </div>
   );
 };
@@ -777,6 +1018,7 @@ const TeacherApp = ({ db, setDb, user, onLogout }) => {
 
     try {
       const courseData = {
+        organizationId: user.organizationId,
         name: form.name,
         description: form.description || "",
         teacherId: user.id,
@@ -837,7 +1079,7 @@ const TeacherApp = ({ db, setDb, user, onLogout }) => {
   const myQuizzes   = db.quizzes.filter(q => myCourseIds.includes(q.courseId));
   const myQuizIds   = myQuizzes.map(q => q.id);
   const teacherAttempts = db.attempts.filter(a => myQuizIds.includes(a.quizId));
-  const institution = db.settings.find(item => item.id === "institution") || {};
+  const institution = db.settings.find(item => item.type === "institution" || item.id === "institution" || item.id.endsWith("_institution")) || {};
 
   const tabs = [
    { id: "overview", label: "Overview",   icon: "" },
@@ -861,6 +1103,7 @@ const TeacherApp = ({ db, setDb, user, onLogout }) => {
 
     try {
       const quizData = {
+        organizationId: user.organizationId,
         title: form.title,
         description: form.description || "",
         courseId: form.courseId,
@@ -929,6 +1172,7 @@ const TeacherApp = ({ db, setDb, user, onLogout }) => {
     try {
       const quizData = {
         ...quiz,
+        organizationId: user.organizationId,
         title: `${quiz.title} (Copy)`,
         joinCode: genCode("QZ-"),
         questions: (quiz.questions || []).map(q => ({ ...q, id: genId() })),
@@ -1072,19 +1316,15 @@ const TeacherApp = ({ db, setDb, user, onLogout }) => {
     setImportErrors([]);
 
     try {
-      const response = await fetch("/.netlify/functions/generate-questions", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
+      const generateQuizQuestions = httpsCallable(functions, "generateQuizQuestions");
+      const response = await generateQuizQuestions({
           topic: aiTopic.trim(),
           sourceText: aiSourceText.trim(),
           count: Number(aiQuestionCount) || 10,
           mix: aiQuestionMix.trim()
-        })
       });
 
-      const payload = await response.json();
-      if (!response.ok) throw new Error(payload.error || "AI generation failed.");
+      const payload = response.data || {};
 
       const questions = (payload.questions || []).map(question => ({
         id: genId(),
@@ -1472,11 +1712,11 @@ const TeacherApp = ({ db, setDb, user, onLogout }) => {
                             <span> {course?.name}</span>
                             <span> {q.questions.length} questions</span>
                             <span> {attempts.length} attempts</span>
-                            <span style={{ background: "#f1f5f9", border: "1px solid #e2e8f0", borderRadius: 6, padding: "2px 8px", fontFamily: "monospace", fontWeight: 700, color: "#475569" }}>{q.joinCode}</span>
+                          <span style={{ background: "#f1f5f9", border: "1px solid #e2e8f0", borderRadius: 6, padding: "2px 8px", fontWeight: 700, color: "#475569" }}>Timed QR access</span>
                           </div>
                         </div>
                         <div style={{ display: "flex", gap: 8 }}>
-                          <Btn size="sm" variant="purple"  onClick={() => setQrTarget({ title: q.title, code: q.joinCode, description: `Share this QR so students can directly access "${q.title}"` })}> QR</Btn>
+                          <Btn size="sm" variant="purple" onClick={() => setQrTarget({ title: q.title, quizId: q.id, description: `Share this temporary QR so students can access "${q.title}"` })}> QR</Btn>
                           <Btn size="sm" variant="outline" onClick={() => openEditor(q)}> Questions</Btn>
                           <Btn size="sm" variant="ghost"   onClick={() => openQuizModal(q)}>Edit</Btn>
                           <Btn size="sm" variant="success" onClick={() => duplicateQuiz(q)}>Duplicate</Btn>
@@ -1499,7 +1739,7 @@ const TeacherApp = ({ db, setDb, user, onLogout }) => {
                 <h2 style={{ margin: "0 0 4px", fontWeight: 800, fontSize: 24, color: "#0f172a" }}> {currentQuiz.title}</h2>
                 <p style={{ margin: 0, color: "#64748b", fontSize: 14 }}>{currentQuiz.questions.length} question{currentQuiz.questions.length !== 1 ? "s" : ""} added</p>
               </div>
-              <Btn variant="purple" size="sm" onClick={() => setQrTarget({ title: currentQuiz.title, code: currentQuiz.joinCode, description: `Share this QR so students can directly access "${currentQuiz.title}"` })}> QR Code</Btn>
+              <Btn variant="purple" size="sm" onClick={() => setQrTarget({ title: currentQuiz.title, quizId: currentQuiz.id, description: `Share this temporary QR so students can access "${currentQuiz.title}"` })}> QR Code</Btn>
             </div>
 
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24 }}>
@@ -1933,7 +2173,7 @@ const TeacherApp = ({ db, setDb, user, onLogout }) => {
         </Modal>
       )}
 
-     {qrTarget && <QRModal title={qrTarget.title} code={qrTarget.code} description={qrTarget.description} onClose={() => setQrTarget(null)} />}
+     {qrTarget && <QRModal title={qrTarget.title} code={qrTarget.code} quizId={qrTarget.quizId} description={qrTarget.description} onClose={() => setQrTarget(null)} />}
     </div>
   );
 };
@@ -1956,6 +2196,7 @@ const StudentApp = ({ db, setDb, user, onLogout }) => {
   const [startedAt, setStartedAt]               = useState(null);
   const [showRegistration, setShowRegistration] = useState(false);
   const [pendingQuiz, setPendingQuiz]           = useState(null);
+  const [pendingAccessToken, setPendingAccessToken] = useState("");
 
   const [studentName, setStudentName] = useState(user.name || "");
   const [studentUSN, setStudentUSN]   = useState(user.usn  || "");
@@ -2014,6 +2255,7 @@ const StudentApp = ({ db, setDb, user, onLogout }) => {
       try { endsAt = saved ? JSON.parse(saved).endsAt : null; } catch { endsAt = null; }
       try {
         await setDoc(doc(firestore, "quizSessions", sessionId), {
+          organizationId: user.organizationId,
           quizId: activeQuiz.id,
           studentId: user.id,
           studentName: studentName.trim(),
@@ -2032,7 +2274,7 @@ const StudentApp = ({ db, setDb, user, onLogout }) => {
       }
     }, 500);
     return () => window.clearTimeout(timer);
-  }, [activeQuiz, answers, currentQuestion, studentName, studentUSN, submitted, user.id, quizSessionKey, violationCount, startedAt]);
+  }, [activeQuiz, answers, currentQuestion, studentName, studentUSN, submitted, user.id, user.organizationId, quizSessionKey, violationCount, startedAt]);
 
   //  Read QR code from URL once on mount only 
 useEffect(() => {
@@ -2045,14 +2287,15 @@ useEffect(() => {
 
   setCodeInput(upper);
 
-  const quiz =
-    db.quizzes.find(
-      q => q.joinCode === upper
-    );
+  const quiz = db.quizzes.find(q => q.accessToken?.toUpperCase() === upper);
 
-  if (quiz) {
+  if (quiz && isQuizAccessValid(quiz, upper)) {
     setPendingQuiz(quiz);
+    setPendingAccessToken(upper);
     setShowRegistration(true);
+    setCodeError("");
+  } else if (db.quizzes.length) {
+    setCodeError("This quiz QR code is invalid or has expired. Ask your teacher for the current QR code.");
   }
 
 }, [db.quizzes]);//  empty: run once on mount only
@@ -2074,6 +2317,7 @@ useEffect(() => {
       if (!already) {
         try {
           const enrollmentData = {
+            organizationId: user.organizationId,
             studentId: user.id,
             studentName: user.name || studentName || "",
             studentUSN: user.usn || studentUSN || "",
@@ -2096,16 +2340,17 @@ useEffect(() => {
       return;
     }
 
-    const quiz = db.quizzes.find(q => q.joinCode?.toUpperCase() === code);
-    if (quiz) {
+    const quiz = db.quizzes.find(q => q.accessToken?.toUpperCase() === code);
+    if (quiz && isQuizAccessValid(quiz, code)) {
       setPendingQuiz(quiz);
+      setPendingAccessToken(code);
       setShowRegistration(true);
       setCodeInput("");
       setCodeError("");
       return;
     }
 
-    setCodeError("Invalid code.");
+    setCodeError(code.startsWith("QZ-") ? "This quiz access code is invalid or expired. Ask your teacher for the current QR code." : "Invalid code.");
   };
 
   //  Launch quiz (after registration) 
@@ -2153,6 +2398,15 @@ useEffect(() => {
   const startRegisteredQuiz = () => {
     if (!studentName.trim()) { alert("Please enter your name."); return; }
     if (!studentUSN.trim()) { alert("Please enter your USN."); return; }
+    const latestQuiz = db.quizzes.find(quiz => quiz.id === pendingQuiz?.id);
+    if (!latestQuiz || !isQuizAccessValid(latestQuiz, pendingAccessToken)) {
+      setShowRegistration(false);
+      setPendingQuiz(null);
+      setPendingAccessToken("");
+      setCodeError("This quiz QR code expired before the quiz started. Scan the current QR code.");
+      setTab("join");
+      return;
+    }
 
     const normalizedUSN = studentUSN.trim().toLowerCase();
     const sameUsnAttempt = db.attempts.find(a =>
@@ -2166,7 +2420,7 @@ useEffect(() => {
     }
 
     setShowRegistration(false);
-    launchQuiz(pendingQuiz);
+    launchQuiz(latestQuiz);
   };
 
   //  Open registration before launching from course view 
@@ -2178,8 +2432,9 @@ useEffect(() => {
       alert("You have already attempted this quiz.");
       return;
     }
-    setPendingQuiz(quiz);
-    setShowRegistration(true);
+    setCodeError(`Scan the current QR code shared by your teacher to enter “${quiz.title}”.`);
+    setCodeInput("");
+    setTab("join");
   };
 
   //  Submit quiz 
@@ -2213,6 +2468,7 @@ useEffect(() => {
     const maximumScore = getQuizMaximumScore(activeQuiz);
 
     const attemptData = {
+      organizationId: user.organizationId,
       studentId: user.id,
       studentName: studentName.trim(),
       studentUSN: studentUSN.trim(),
@@ -2235,6 +2491,7 @@ useEffect(() => {
 
       setDb(d => ({ ...d, attempts: [...d.attempts, attempt] }));
       await setDoc(doc(firestore, "quizSessions", `${activeQuiz.id}_${user.id}`), {
+        organizationId: user.organizationId,
         status: "completed",
         completedAt: attemptData.completedAt,
         updatedAt: attemptData.completedAt
@@ -2257,6 +2514,7 @@ useEffect(() => {
       setViolationCount(nextCount);
       try {
         await addDoc(collection(firestore, "integrityLogs"), {
+          organizationId: user.organizationId,
           quizId: activeQuiz.id,
           studentId: user.id,
           studentName: studentName.trim(),
@@ -2302,7 +2560,7 @@ useEffect(() => {
       document.removeEventListener("visibilitychange", monitorVisibility);
       document.removeEventListener("fullscreenchange", monitorFullscreen);
     };
-  }, [activeQuiz, submitted, violationCount, user.id, studentName, studentUSN]);
+  }, [activeQuiz, submitted, violationCount, user.id, user.organizationId, studentName, studentUSN]);
 
   useEffect(() => {
     if (!activeQuiz || submitted || remainingSeconds === null) return;
@@ -2518,7 +2776,7 @@ useEffect(() => {
               </div>
              {codeError && <p style={{ color: "#dc2626", fontSize: 13, margin: "10px 0 0" }}> {codeError}</p>}
               <p style={{ fontSize: 12, color: "#94a3b8", margin: "14px 0 0" }}>
-                Use a <strong>CRS-XXXXX</strong> code to join a full course, or a <strong>QZ-XXXXX</strong> code to directly attempt a quiz.
+                Use a <strong>CRS-XXXXX</strong> code to join a course, or scan the teacher's current temporary <strong>QZ-...</strong> QR code to enter a quiz.
               </p>
 
               <div style={{ marginTop: 20, padding: 14, background: "#f1f5f9", borderRadius: 10, border: "1px solid #e2e8f0" }}>
@@ -2663,8 +2921,227 @@ useEffect(() => {
   );
 };
 
+const AccountSetupPage = ({ user, db, onComplete }) => {
+  const [form, setForm] = useState({
+    name: user.name || "",
+    usn: user.usn || "",
+    department: user.department || "",
+    departmentId: user.departmentId || "",
+    designation: user.designation || "",
+    employeeId: user.employeeId || "",
+    program: user.program || "",
+    programId: user.programId || "",
+    batch: user.batch || "",
+    batchId: user.batchId || "",
+    newPassword: ""
+  });
+  const [error, setError] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  const complete = async () => {
+    if (!form.name.trim()) return setError("Your name is required.");
+    if (user.role === "student" && !form.usn.trim()) return setError("Your USN or student ID is required.");
+    if (user.mustChangePassword && form.newPassword.length < 8) return setError("Choose a new password with at least 8 characters.");
+    setSaving(true);
+    setError("");
+    try {
+      if (user.mustChangePassword) await updatePassword(auth.currentUser, form.newPassword);
+      if (auth.currentUser && !auth.currentUser.emailVerified) {
+        await sendEmailVerification(auth.currentUser).catch(() => {});
+      }
+      const profile = {
+        name: form.name.trim(),
+        usn: form.usn.trim(),
+        departmentId: form.departmentId,
+        department: db.departments.find(item => item.id === form.departmentId)?.name || form.department.trim(),
+        designation: form.designation.trim(),
+        employeeId: form.employeeId.trim(),
+        programId: form.programId,
+        program: db.programs.find(item => item.id === form.programId)?.name || form.program.trim(),
+        batchId: form.batchId,
+        batch: db.batches.find(item => item.id === form.batchId)?.name || form.batch.trim(),
+        onboardingCompleted: true,
+        mustChangePassword: false,
+        verificationEmailSentAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      };
+      await setDoc(doc(firestore, "users", user.id), profile, { merge: true });
+      onComplete({ ...user, ...profile });
+    } catch (setupError) {
+      setError(setupError.message || "Unable to complete account setup.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "#f8fafc", padding: 24 }}>
+      <Card style={{ width: 520 }}>
+        <h2 style={{ marginTop: 0 }}>Complete your profile</h2>
+        <p style={{ color: "#64748b" }}>Confirm your institutional details before entering your workspace. We will also send an email-verification link.</p>
+        <Input label="Full name" value={form.name} onChange={event => setForm({ ...form, name: event.target.value })} />
+        <Input label={user.role === "student" ? "USN / Student ID" : "Faculty ID"} value={form.usn} onChange={event => setForm({ ...form, usn: event.target.value })} />
+        {db.departments.length ? <Select label="Department" value={form.departmentId} onChange={event => setForm({ ...form, departmentId: event.target.value })} options={[{ value: "", label: "Select department" }, ...db.departments.map(item => ({ value: item.id, label: item.name }))]} /> : <Input label="Department" value={form.department} onChange={event => setForm({ ...form, department: event.target.value })} />}
+        {user.role === "teacher" ? <>
+          <Input label="Designation" value={form.designation} onChange={event => setForm({ ...form, designation: event.target.value })} />
+          <Input label="Employee ID" value={form.employeeId} onChange={event => setForm({ ...form, employeeId: event.target.value })} />
+        </> : <>
+          {db.programs.length ? <Select label="Program" value={form.programId} onChange={event => setForm({ ...form, programId: event.target.value })} options={[{ value: "", label: "Select program" }, ...db.programs.map(item => ({ value: item.id, label: item.name }))]} /> : <Input label="Program" value={form.program} onChange={event => setForm({ ...form, program: event.target.value })} />}
+          {db.batches.length ? <Select label="Batch / graduating year" value={form.batchId} onChange={event => setForm({ ...form, batchId: event.target.value })} options={[{ value: "", label: "Select batch" }, ...db.batches.map(item => ({ value: item.id, label: item.name }))]} /> : <Input label="Batch / graduating year" value={form.batch} onChange={event => setForm({ ...form, batch: event.target.value })} />}
+        </>}
+        {user.mustChangePassword && <Input label="Choose a new password" type="password" value={form.newPassword} onChange={event => setForm({ ...form, newPassword: event.target.value })} />}
+        {error && <p style={{ color: "#dc2626" }}>{error}</p>}
+        <Btn disabled={saving} onClick={complete}>{saving ? "Saving..." : "Complete setup"}</Btn>
+      </Card>
+    </div>
+  );
+};
+
+const VerifyEmailPage = ({ onVerified, onLogout }) => {
+  const [message, setMessage] = useState("Verify your email address before entering the institutional workspace. Use Resend if you have not received a link.");
+  const check = async () => {
+    try {
+      await reload(auth.currentUser);
+      if (!auth.currentUser.emailVerified) return setMessage("The address is not verified yet. Open the email link, then check again.");
+      await auth.currentUser.getIdToken(true);
+      onVerified();
+    } catch (error) {
+      setMessage(error.message || "Unable to refresh verification status.");
+    }
+  };
+  const resend = async () => {
+    try {
+      await sendEmailVerification(auth.currentUser);
+      setMessage("A new verification message was sent.");
+    } catch (error) {
+      setMessage(error.message || "Unable to resend verification.");
+    }
+  };
+  return <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "#f8fafc" }}><Card style={{ width: 480, textAlign: "center" }}>
+    <h2>Verify your email</h2><p style={{ color: "#64748b" }}>{message}</p>
+    <div style={{ display: "flex", gap: 10, justifyContent: "center" }}><Btn onClick={check}>I verified — check again</Btn><Btn variant="ghost" onClick={resend}>Resend</Btn><Btn variant="ghost" onClick={onLogout}>Logout</Btn></div>
+  </Card></div>;
+};
+
+const OrganizationSignupPage = ({ onCancel, onComplete }) => {
+  const [form, setForm] = useState({ institution: "", ownerName: "", email: "", password: "" });
+  const [error, setError] = useState("");
+  const [saving, setSaving] = useState(false);
+  const submit = async () => {
+    if (!form.institution.trim() || !form.ownerName.trim() || !form.email.trim() || form.password.length < 8) {
+      return setError("Complete every field and use a password of at least 8 characters.");
+    }
+    setSaving(true);
+    setError("");
+    let credential;
+    try {
+      credential = await createUserWithEmailAndPassword(auth, form.email.trim(), form.password);
+      await sendEmailVerification(credential.user).catch(() => {});
+      const bootstrap = httpsCallable(functions, "bootstrapOrganization");
+      const result = await bootstrap({ name: form.institution.trim(), ownerName: form.ownerName.trim() });
+      onComplete({
+        id: credential.user.uid,
+        uid: credential.user.uid,
+        email: credential.user.email,
+        name: form.ownerName.trim(),
+        role: "admin",
+        organizationId: result.data.organizationId,
+        onboardingCompleted: true
+      });
+    } catch (signupError) {
+      if (credential?.user) await deleteAuthUser(credential.user).catch(() => {});
+      setError(signupError.message || "Unable to create the institution.");
+    } finally {
+      setSaving(false);
+    }
+  };
+  return (
+    <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "#f8fafc", padding: 24 }}>
+      <Card style={{ width: 520 }}>
+        <h2 style={{ marginTop: 0 }}>Start a new institution</h2>
+        <p style={{ color: "#64748b" }}>Creates an isolated 30-day pilot workspace. No payment is collected.</p>
+        <Input label="College / institution name" value={form.institution} onChange={event => setForm({ ...form, institution: event.target.value })} />
+        <Input label="Administrator name" value={form.ownerName} onChange={event => setForm({ ...form, ownerName: event.target.value })} />
+        <Input label="Work email" type="email" value={form.email} onChange={event => setForm({ ...form, email: event.target.value })} />
+        <Input label="Password" type="password" value={form.password} onChange={event => setForm({ ...form, password: event.target.value })} />
+        {error && <p style={{ color: "#dc2626" }}>{error}</p>}
+        <div style={{ display: "flex", gap: 10 }}><Btn variant="ghost" onClick={onCancel}>Back</Btn><Btn disabled={saving} onClick={submit}>{saving ? "Creating..." : "Create pilot workspace"}</Btn></div>
+      </Card>
+    </div>
+  );
+};
+
+const InvitationSignupPage = ({ token, onCancel, onComplete }) => {
+  const [preview, setPreview] = useState(null);
+  const [form, setForm] = useState({ name: "", password: "" });
+  const [error, setError] = useState("");
+  const [saving, setSaving] = useState(false);
+  useEffect(() => {
+    const previewInvitation = httpsCallable(functions, "previewInvitation");
+    previewInvitation({ token }).then(result => {
+      setPreview(result.data);
+      setForm(value => ({ ...value, name: result.data.name || "" }));
+    }).catch(invitationError => setError(invitationError.message || "This invitation is invalid."));
+  }, [token]);
+  const accept = async () => {
+    if (!preview || !form.name.trim() || form.password.length < 8) return setError("Enter your name and a password of at least 8 characters.");
+    setSaving(true);
+    let credential;
+    try {
+      credential = await createUserWithEmailAndPassword(auth, preview.email, form.password);
+      await sendEmailVerification(credential.user).catch(() => {});
+      const claimInvitation = httpsCallable(functions, "claimInvitation");
+      const result = await claimInvitation({ token, name: form.name.trim() });
+      onComplete({ id: credential.user.uid, ...result.data.profile });
+    } catch (acceptError) {
+      if (credential?.user) await deleteAuthUser(credential.user).catch(() => {});
+      setError(acceptError.message || "Unable to accept the invitation.");
+    } finally {
+      setSaving(false);
+    }
+  };
+  return (
+    <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "#f8fafc", padding: 24 }}>
+      <Card style={{ width: 500 }}>
+        <h2 style={{ marginTop: 0 }}>Accept your Quizly invitation</h2>
+        {preview && <p style={{ color: "#475569" }}>Join <strong>{preview.organizationName}</strong> as a <strong>{preview.role}</strong> using {preview.email}.</p>}
+        <Input label="Full name" value={form.name} onChange={event => setForm({ ...form, name: event.target.value })} />
+        <Input label="Create password" type="password" value={form.password} onChange={event => setForm({ ...form, password: event.target.value })} />
+        {error && <p style={{ color: "#dc2626" }}>{error}</p>}
+        <div style={{ display: "flex", gap: 10 }}><Btn variant="ghost" onClick={onCancel}>Back</Btn><Btn disabled={saving || !preview} onClick={accept}>{saving ? "Joining..." : "Accept invitation"}</Btn></div>
+      </Card>
+    </div>
+  );
+};
+
+const LegacyOrganizationSetup = ({ user, onComplete }) => {
+  const [name, setName] = useState(user.college || "");
+  const [working, setWorking] = useState(false);
+  const [error, setError] = useState("");
+  const adopt = async () => {
+    if (!name.trim()) return setError("Enter the institution name.");
+    setWorking(true);
+    try {
+      const migrate = httpsCallable(functions, "adoptLegacyOrganization");
+      const result = await migrate({ name: name.trim() });
+      onComplete({ ...user, organizationId: result.data.organizationId, onboardingCompleted: true });
+    } catch (migrationError) {
+      setError(migrationError.message || "Migration failed.");
+    } finally {
+      setWorking(false);
+    }
+  };
+  return <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "#f8fafc" }}><Card style={{ width: 520 }}>
+    <h2 style={{ marginTop: 0 }}>Upgrade your existing workspace</h2>
+    <p style={{ color: "#64748b" }}>Assigns all existing Quizly records to your first isolated organization. This one-time step is required before continuing.</p>
+    <Input label="Institution name" value={name} onChange={event => setName(event.target.value)} />
+    {error && <p style={{ color: "#dc2626" }}>{error}</p>}
+    <Btn disabled={working} onClick={adopt}>{working ? "Migrating..." : "Create organization and migrate data"}</Btn>
+  </Card></div>;
+};
+
 //  LOGIN PAGE 
-const LoginPage = ({ onLogin }) => {
+const LoginPage = ({ onLogin, onCreateInstitution }) => {
   const [email, setEmail]       = useState("");
   const [password, setPassword] = useState("");
   const [err, setErr]           = useState("");
@@ -2778,6 +3255,9 @@ const handleResetPassword = async () => {
           <button onClick={handleResetPassword} style={{ marginTop: 12, width: "100%", background: "transparent", border: "none", color: "#2563eb", cursor: "pointer", fontFamily: "inherit", fontWeight: 600 }}>
             Reset Password
           </button>
+          <button onClick={onCreateInstitution} style={{ marginTop: 10, width: "100%", background: "transparent", border: "none", color: "#7c3aed", cursor: "pointer", fontFamily: "inherit", fontWeight: 700 }}>
+            Onboard a new college
+          </button>
         </div>
       </div>
     </div>
@@ -2795,41 +3275,52 @@ export default function App() {
   enrollments: [],
   quizSessions: [],
   integrityLogs: [],
-  settings: []
+  settings: [],
+  organizations: [],
+  departments: [],
+  programs: [],
+  batches: [],
+  academicTerms: []
 });
 const [dataLoading, setDataLoading] = useState(true);
+const [currentUser, setCurrentUser] = useState(null);
+const [authLoading, setAuthLoading] = useState(true);
+const [authMode, setAuthMode] = useState("login");
+const invitationToken = new URLSearchParams(window.location.search).get("invite");
 
   useEffect(() => {
+  if (!currentUser) {
+    setDataLoading(false);
+    return;
+  }
 
   const loadData = async () => {
-
-    const usersSnap =
-      await getDocs(
-        collection(firestore, "users")
-      );
-
-    const coursesSnap =
-      await getDocs(
-        collection(firestore, "courses")
-      );
-
-    const quizzesSnap =
-      await getDocs(
-        collection(firestore, "quizzes")
-      );
-
-    const attemptsSnap =
-      await getDocs(
-        collection(firestore, "attempts")
-      );
-
-    const enrollmentsSnap =
-      await getDocs(
-        collection(firestore, "enrollments")
-      );
-    const sessionsSnap = await getDocs(collection(firestore, "quizSessions"));
-    const integritySnap = await getDocs(collection(firestore, "integrityLogs"));
-    const settingsSnap = await getDocs(collection(firestore, "settings"));
+    setDataLoading(true);
+    const organizationId = currentUser.organizationId;
+    if (!organizationId) {
+      setDataLoading(false);
+      return;
+    }
+    const privileged = ["admin", "teacher"].includes(currentUser.role);
+    const tenant = name => query(collection(firestore, name), where("organizationId", "==", organizationId));
+    const owned = (name, field = "studentId") => privileged
+      ? tenant(name)
+      : query(collection(firestore, name), where("organizationId", "==", organizationId), where(field, "==", currentUser.id));
+    const [usersSnap, coursesSnap, quizzesSnap, attemptsSnap, enrollmentsSnap, sessionsSnap, integritySnap, settingsSnap, organizationSnap, departmentsSnap, programsSnap, batchesSnap, termsSnap] = await Promise.all([
+      privileged ? getDocs(tenant("users")) : getDocs(query(collection(firestore, "users"), where("organizationId", "==", organizationId), where("uid", "==", currentUser.id))),
+      getDocs(tenant("courses")),
+      getDocs(tenant("quizzes")),
+      getDocs(owned("attempts")),
+      getDocs(owned("enrollments")),
+      getDocs(owned("quizSessions")),
+      getDocs(owned("integrityLogs")),
+      getDocs(tenant("settings")),
+      getDoc(doc(firestore, "organizations", organizationId)),
+      getDocs(tenant("departments")),
+      getDocs(tenant("programs")),
+      getDocs(tenant("batches")),
+      getDocs(tenant("academicTerms"))
+    ]);
 
     setDb({
       users: usersSnap.docs.map(d => ({
@@ -2858,40 +3349,75 @@ const [dataLoading, setDataLoading] = useState(true);
       })),
       quizSessions: sessionsSnap.docs.map(d => ({ id: d.id, ...d.data() })),
       integrityLogs: integritySnap.docs.map(d => ({ id: d.id, ...d.data() })),
-      settings: settingsSnap.docs.map(d => ({ id: d.id, ...d.data() }))
+      settings: settingsSnap.docs.map(d => ({ id: d.id, ...d.data() })),
+      organizations: organizationSnap.exists() ? [{ id: organizationSnap.id, ...organizationSnap.data() }] : [],
+      departments: departmentsSnap.docs.map(d => ({ id: d.id, ...d.data() })),
+      programs: programsSnap.docs.map(d => ({ id: d.id, ...d.data() })),
+      batches: batchesSnap.docs.map(d => ({ id: d.id, ...d.data() })),
+      academicTerms: termsSnap.docs.map(d => ({ id: d.id, ...d.data() }))
     });
     setDataLoading(false);
   };
 
-  loadData();
+  loadData().catch(error => {
+    console.error("Unable to load application data:", error);
+    setDataLoading(false);
+  });
 
-}, []);
+}, [currentUser]);
 
   useEffect(() => {
-    const unsubUsers = onSnapshot(collection(firestore, "users"), snap => {
+    if (!currentUser) return undefined;
+    const organizationId = currentUser.organizationId;
+    if (!organizationId) return undefined;
+    const privileged = ["admin", "teacher"].includes(currentUser.role);
+    const tenant = name => query(collection(firestore, name), where("organizationId", "==", organizationId));
+    const owned = (name, field = "studentId") => privileged
+      ? tenant(name)
+      : query(collection(firestore, name), where("organizationId", "==", organizationId), where(field, "==", currentUser.id));
+    const usersSource = privileged
+      ? tenant("users")
+      : query(collection(firestore, "users"), where("organizationId", "==", organizationId), where("uid", "==", currentUser.id));
+    const onError = error => console.error("Realtime data subscription failed:", error);
+    const unsubUsers = onSnapshot(usersSource, snap => {
       setDb(prev => ({ ...prev, users: snap.docs.map(d => ({ id: d.id, ...d.data() })) }));
-    });
-    const unsubCourses = onSnapshot(collection(firestore, "courses"), snap => {
+    }, onError);
+    const unsubCourses = onSnapshot(tenant("courses"), snap => {
       setDb(prev => ({ ...prev, courses: snap.docs.map(d => ({ id: d.id, ...d.data() })) }));
-    });
-    const unsubQuizzes = onSnapshot(collection(firestore, "quizzes"), snap => {
+    }, onError);
+    const unsubQuizzes = onSnapshot(tenant("quizzes"), snap => {
       setDb(prev => ({ ...prev, quizzes: snap.docs.map(d => ({ id: d.id, ...d.data() })) }));
-    });
-    const unsubAttempts = onSnapshot(collection(firestore, "attempts"), snap => {
+    }, onError);
+    const unsubAttempts = onSnapshot(owned("attempts"), snap => {
       setDb(prev => ({ ...prev, attempts: snap.docs.map(d => ({ id: d.id, ...d.data() })) }));
-    });
-    const unsubEnrollments = onSnapshot(collection(firestore, "enrollments"), snap => {
+    }, onError);
+    const unsubEnrollments = onSnapshot(owned("enrollments"), snap => {
       setDb(prev => ({ ...prev, enrollments: snap.docs.map(d => ({ id: d.id, ...d.data() })) }));
-    });
-    const unsubSessions = onSnapshot(collection(firestore, "quizSessions"), snap => {
+    }, onError);
+    const unsubSessions = onSnapshot(owned("quizSessions"), snap => {
       setDb(prev => ({ ...prev, quizSessions: snap.docs.map(d => ({ id: d.id, ...d.data() })) }));
-    });
-    const unsubIntegrity = onSnapshot(collection(firestore, "integrityLogs"), snap => {
+    }, onError);
+    const unsubIntegrity = onSnapshot(owned("integrityLogs"), snap => {
       setDb(prev => ({ ...prev, integrityLogs: snap.docs.map(d => ({ id: d.id, ...d.data() })) }));
-    });
-    const unsubSettings = onSnapshot(collection(firestore, "settings"), snap => {
+    }, onError);
+    const unsubSettings = onSnapshot(tenant("settings"), snap => {
       setDb(prev => ({ ...prev, settings: snap.docs.map(d => ({ id: d.id, ...d.data() })) }));
-    });
+    }, onError);
+    const unsubOrganization = onSnapshot(doc(firestore, "organizations", organizationId), snap => {
+      setDb(prev => ({ ...prev, organizations: snap.exists() ? [{ id: snap.id, ...snap.data() }] : [] }));
+    }, onError);
+    const unsubDepartments = onSnapshot(tenant("departments"), snap => {
+      setDb(prev => ({ ...prev, departments: snap.docs.map(d => ({ id: d.id, ...d.data() })) }));
+    }, onError);
+    const unsubPrograms = onSnapshot(tenant("programs"), snap => {
+      setDb(prev => ({ ...prev, programs: snap.docs.map(d => ({ id: d.id, ...d.data() })) }));
+    }, onError);
+    const unsubBatches = onSnapshot(tenant("batches"), snap => {
+      setDb(prev => ({ ...prev, batches: snap.docs.map(d => ({ id: d.id, ...d.data() })) }));
+    }, onError);
+    const unsubTerms = onSnapshot(tenant("academicTerms"), snap => {
+      setDb(prev => ({ ...prev, academicTerms: snap.docs.map(d => ({ id: d.id, ...d.data() })) }));
+    }, onError);
 
     return () => {
       unsubUsers();
@@ -2902,18 +3428,13 @@ const [dataLoading, setDataLoading] = useState(true);
       unsubSessions();
       unsubIntegrity();
       unsubSettings();
+      unsubOrganization();
+      unsubDepartments();
+      unsubPrograms();
+      unsubBatches();
+      unsubTerms();
     };
-  }, []);
-
-  const [currentUser, setCurrentUser] = useState(null);
-  const [authLoading, setAuthLoading] = useState(true);
-  const [guestId] = useState(() => {
-    const existing = sessionStorage.getItem("quizlyGuestId");
-    if (existing) return existing;
-    const id = genId();
-    sessionStorage.setItem("quizlyGuestId", id);
-    return id;
-  });
+  }, [currentUser]);
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (firebaseUser) => {
@@ -2946,10 +3467,6 @@ const [dataLoading, setDataLoading] = useState(true);
     setCurrentUser(null);
   };
 
-  //  QR code from URL 
-  const params = new URLSearchParams(window.location.search);
-  const qrCode = params.get("code");
-
   if (authLoading) {
     return (
       <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "#f8fafc", color: "#475569", fontFamily: "Arial, sans-serif" }}>
@@ -2958,39 +3475,32 @@ const [dataLoading, setDataLoading] = useState(true);
     );
   }
 
-  //  Fix 3: guest gets a unique id per session, not "guest" 
   if (!currentUser) {
-    if (qrCode && dataLoading) {
-      return (
-        <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "#f8fafc", color: "#475569", fontFamily: "Arial, sans-serif" }}>
-          Loading quiz...
-        </div>
-      );
-    }
+    if (invitationToken) return <InvitationSignupPage token={invitationToken} onCancel={() => window.location.assign(window.location.pathname)} onComplete={setCurrentUser} />;
+    if (authMode === "organization") return <OrganizationSignupPage onCancel={() => setAuthMode("login")} onComplete={setCurrentUser} />;
+    return <LoginPage onLogin={setCurrentUser} onCreateInstitution={() => setAuthMode("organization")} />;
+  }
 
-    if (qrCode) {
-      const quiz = db.quizzes.find(
-        q => q.joinCode?.toUpperCase() === qrCode.toUpperCase()
-      );
-      if (quiz) {
-        const guestUser = {
-          id:   guestId, // stable per browser session so results stay visible
-          name: "",
-          usn:  "",
-          role: "student",
-        };
-        return (
-          <StudentApp
-            db={db}
-            setDb={setDb}
-            user={guestUser}
-            onLogout={() => {}}
-          />
-        );
-      }
-    }
+  if (auth.currentUser && !auth.currentUser.emailVerified) {
+    return <VerifyEmailPage onVerified={() => setCurrentUser({ ...currentUser })} onLogout={logout} />;
+  }
 
-    return <LoginPage onLogin={setCurrentUser} />;
+  if (!currentUser.organizationId) {
+    return currentUser.role === "admin"
+      ? <LegacyOrganizationSetup user={currentUser} onComplete={setCurrentUser} />
+      : <div style={{ padding: 40 }}>Your account is not assigned to an institution. Contact your administrator.</div>;
+  }
+
+  if (dataLoading) {
+    return (
+      <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "#f8fafc", color: "#475569", fontFamily: "Arial, sans-serif" }}>
+        Loading your workspace...
+      </div>
+    );
+  }
+
+  if (!currentUser.onboardingCompleted && currentUser.role !== "admin") {
+    return <AccountSetupPage user={currentUser} db={db} onComplete={setCurrentUser} />;
   }
 
   //  Route by role 

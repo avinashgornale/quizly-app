@@ -1,70 +1,59 @@
-# Getting Started with Create React App
+# Quizly
 
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+Quizly is a Firebase-backed quiz platform for institutions. Administrators manage accounts and courses, teachers create and assess quizzes, and authenticated students join quizzes through shared codes or QR links.
 
-## Available Scripts
+## Architecture
 
-In the project directory, you can run:
+- React frontend (`src/`)
+- Firebase Authentication and Cloud Firestore
+- Firebase Cloud Functions (`functions/`) for privileged account administration and AI question generation
+- Netlify-compatible static frontend deployment
 
-### `npm start`
+Sensitive operations must remain in Cloud Functions. Passwords are managed by Firebase Authentication and are never stored in Firestore.
 
-Runs the app in the development mode.\
-Open [http://localhost:3000](http://localhost:3000) to view it in your browser.
+## Local development
 
-The page will reload when you make changes.\
-You may also see any lint errors in the console.
+Requirements: Node.js 20, npm, a Firebase project, and Firebase CLI.
 
-### `npm test`
+```text
+npm install
+npm start
+```
 
-Launches the test runner in the interactive watch mode.\
-See the section about [running tests](https://facebook.github.io/create-react-app/docs/running-tests) for more information.
+The checked-in Firebase client configuration identifies the Firebase project but does not grant database access. Firestore rules and authenticated identities provide authorization.
 
-### `npm run build`
+## Verification
 
-Builds the app for production to the `build` folder.\
-It correctly bundles React in production mode and optimizes the build for the best performance.
+```text
+npm test -- --watchAll=false
+npm run build
+node --check functions/index.js
+```
 
-The build is minified and the filenames include the hashes.\
-Your app is ready to be deployed!
+## Production deployment
 
-See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
+1. Review `.firebaserc` and select the intended production Firebase project.
+2. Store the OpenAI key with `firebase functions:secrets:set OPENAI_API_KEY`.
+3. Deploy Functions first with `firebase deploy --only functions` so legacy administrators can access the migration callable.
+4. Build and deploy the tenant-aware static frontend through the configured hosting provider.
+5. For an existing installation, sign in as the current administrator and complete the one-time organization adoption before enforcing the new rules.
+6. Deploy tenant enforcement with `firebase deploy --only firestore:rules,firestore:indexes`.
+7. Configure Firebase Authentication authorized domains and password policies. Fresh installations can then use **Onboard a new college**.
+8. Install Firebase Trigger Email and configure SMTP if invitation emails should be delivered automatically.
 
-### `npm run eject`
+Do not restore the former Netlify AI endpoint. It was intentionally removed because it accepted unauthenticated requests.
 
-**Note: this is a one-way operation. Once you `eject`, you can't go back!**
+## Security model
 
-If you aren't satisfied with the build tool and configuration choices, you can `eject` at any time. This command will remove the single build dependency from your project.
+- Unauthenticated Firestore access is denied.
+- Administrators manage Authentication accounts through callable backend functions.
+- Teachers can modify only courses and quizzes assigned to their UID.
+- Student attempts, enrollments, sessions, and integrity events are scoped to the authenticated student.
+- Backend administrative actions generate immutable `auditLogs` entries.
+- Quiz entry uses backend-issued QR tokens with a teacher-selected expiry; open QR windows rotate automatically when a token expires.
+- Every business record is scoped by `organizationId`, with organization-aware queries and security rules.
+- New colleges can create isolated pilot workspaces and onboard members through expiring invitations or CSV batches.
 
-Instead, it will copy all the configuration files and the transitive dependencies (webpack, Babel, ESLint, etc) right into your project so you have full control over them. All of the commands except `eject` will still work, but they will point to the copied scripts so you can tweak them. At this point you're on your own.
+See `ONBOARDING.md` for the complete institution, faculty, and student onboarding workflow.
 
-You don't have to ever use `eject`. The curated feature set is suitable for small and middle deployments, and you shouldn't feel obligated to use this feature. However we understand that this tool wouldn't be useful if you couldn't customize it when you are ready for it.
-
-## Learn More
-
-You can learn more in the [Create React App documentation](https://facebook.github.io/create-react-app/docs/getting-started).
-
-To learn React, check out the [React documentation](https://reactjs.org/).
-
-### Code Splitting
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/code-splitting](https://facebook.github.io/create-react-app/docs/code-splitting)
-
-### Analyzing the Bundle Size
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size](https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size)
-
-### Making a Progressive Web App
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app](https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app)
-
-### Advanced Configuration
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/advanced-configuration](https://facebook.github.io/create-react-app/docs/advanced-configuration)
-
-### Deployment
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/deployment](https://facebook.github.io/create-react-app/docs/deployment)
-
-### `npm run build` fails to minify
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify](https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify)
+Before a public commercial launch, move answer keys and scoring fully into trusted backend code. See `COMMERCIALIZATION.md`.

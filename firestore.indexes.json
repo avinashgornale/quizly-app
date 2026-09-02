@@ -1,0 +1,11 @@
+{
+  "indexes": [
+    { "collectionGroup": "users", "queryScope": "COLLECTION", "fields": [{ "fieldPath": "organizationId", "order": "ASCENDING" }, { "fieldPath": "uid", "order": "ASCENDING" }] },
+    { "collectionGroup": "users", "queryScope": "COLLECTION", "fields": [{ "fieldPath": "organizationId", "order": "ASCENDING" }, { "fieldPath": "role", "order": "ASCENDING" }] },
+    { "collectionGroup": "attempts", "queryScope": "COLLECTION", "fields": [{ "fieldPath": "organizationId", "order": "ASCENDING" }, { "fieldPath": "studentId", "order": "ASCENDING" }] },
+    { "collectionGroup": "enrollments", "queryScope": "COLLECTION", "fields": [{ "fieldPath": "organizationId", "order": "ASCENDING" }, { "fieldPath": "studentId", "order": "ASCENDING" }] },
+    { "collectionGroup": "quizSessions", "queryScope": "COLLECTION", "fields": [{ "fieldPath": "organizationId", "order": "ASCENDING" }, { "fieldPath": "studentId", "order": "ASCENDING" }] },
+    { "collectionGroup": "integrityLogs", "queryScope": "COLLECTION", "fields": [{ "fieldPath": "organizationId", "order": "ASCENDING" }, { "fieldPath": "studentId", "order": "ASCENDING" }] }
+  ],
+  "fieldOverrides": []
+}
