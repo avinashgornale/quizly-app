@@ -407,8 +407,13 @@ export const adoptLegacyOrganization = onCall(async (request) => {
     status: "active",
     createdAt: new Date().toISOString()
   });
+  writer.set(userRef, {
+    organizationId: organizationRef.id,
+    legacyVerificationExempt: true,
+    updatedAt: new Date().toISOString()
+  }, { merge: true });
   await writer.close();
-  return { organizationId: organizationRef.id, migrated };
+  return { organizationId: organizationRef.id, migrated, legacyVerificationExempt: true };
 });
 
 const createInvitationRecord = async ({ organizationId, email, role, createdBy, name = "", metadata = {}, inviteBaseUrl = "" }) => {
@@ -551,7 +556,7 @@ export const claimInvitation = onCall(async (request) => {
 
 export const activateOrganization = onCall(async (request) => {
   const administrator = await requireAdmin(request);
-  if (!request.auth.token.email_verified) {
+  if (!request.auth.token.email_verified && !administrator.legacyVerificationExempt) {
     throw new HttpsError("failed-precondition", "Verify the administrator email before activation.");
   }
   const organizationId = administrator.organizationId;

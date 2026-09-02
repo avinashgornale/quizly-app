@@ -3124,7 +3124,7 @@ const LegacyOrganizationSetup = ({ user, onComplete }) => {
     try {
       const migrate = httpsCallable(functions, "adoptLegacyOrganization");
       const result = await migrate({ name: name.trim() });
-      onComplete({ ...user, organizationId: result.data.organizationId, onboardingCompleted: true });
+      onComplete({ ...user, organizationId: result.data.organizationId, onboardingCompleted: true, legacyVerificationExempt: Boolean(result.data.legacyVerificationExempt) });
     } catch (migrationError) {
       setError(migrationError.message || "Migration failed.");
     } finally {
@@ -3481,7 +3481,8 @@ const invitationToken = new URLSearchParams(window.location.search).get("invite"
     return <LoginPage onLogin={setCurrentUser} onCreateInstitution={() => setAuthMode("organization")} />;
   }
 
-  if (auth.currentUser && !auth.currentUser.emailVerified) {
+  const legacyAdministratorExempt = currentUser.role === "admin" && (!currentUser.organizationId || currentUser.legacyVerificationExempt);
+  if (auth.currentUser && !auth.currentUser.emailVerified && !legacyAdministratorExempt) {
     return <VerifyEmailPage onVerified={() => setCurrentUser({ ...currentUser })} onLogout={logout} />;
   }
 
