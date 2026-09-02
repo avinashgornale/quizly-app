@@ -3126,7 +3126,10 @@ const LegacyOrganizationSetup = ({ user, onComplete }) => {
       const result = await migrate({ name: name.trim() });
       onComplete({ ...user, organizationId: result.data.organizationId, onboardingCompleted: true, legacyVerificationExempt: Boolean(result.data.legacyVerificationExempt) });
     } catch (migrationError) {
-      setError(migrationError.message || "Migration failed.");
+      const message = migrationError.message || "";
+      setError(message.toLowerCase().includes("internal") || message.toLowerCase().includes("not found")
+        ? "The organization-migration backend is not deployed. Upgrade the Firebase project to Blaze, deploy Cloud Functions, and try again."
+        : message || "Migration failed.");
     } finally {
       setWorking(false);
     }
