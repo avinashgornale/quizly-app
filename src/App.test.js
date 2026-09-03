@@ -51,11 +51,10 @@ test("accepts only the current unexpired quiz access token", () => {
   expect(isQuizAccessValid(quiz, "QZ-CURRENT123", Date.parse("2026-09-02T10:10:00.000Z"))).toBe(false);
 });
 
-test("opens the new-institution onboarding flow", async () => {
+test("does not expose public institution onboarding", async () => {
   render(<App />);
-  fireEvent.click(await screen.findByRole("button", { name: /onboard a new college/i }));
-  expect(screen.getByRole("heading", { name: /start a new institution/i })).toBeInTheDocument();
-  expect(screen.getByLabelText(/college \/ institution name/i)).toBeInTheDocument();
+  expect(await screen.findByRole("heading", { name: /welcome back/i })).toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: /onboard a new college/i })).not.toBeInTheDocument();
 });
 
 test("opens individual faculty subscription signup", async () => {

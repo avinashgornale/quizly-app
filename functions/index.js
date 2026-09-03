@@ -164,7 +164,7 @@ const enforceSeatEntitlement = async (organizationId, role) => {
   if (!organization.exists) throw new HttpsError("failed-precondition", "Organization not found.");
   const data = organization.data();
   const subscription = data.subscription || {};
-  if (["suspended", "cancelled"].includes(data.status) || ["past_due", "cancelled"].includes(subscription.status)) {
+  if (["pending_payment", "suspended", "cancelled"].includes(data.status) || ["pending_payment", "past_due", "cancelled"].includes(subscription.status)) {
     throw new HttpsError("permission-denied", "The organization subscription is not active.");
   }
   if (subscription.status === "trialing" && subscription.trialEndsAt && new Date(subscription.trialEndsAt).getTime() <= Date.now()) {
@@ -198,6 +198,7 @@ const cleanProfile = (data = {}) => ({
   department: String(data.department || "").trim().slice(0, 160),
   designation: String(data.designation || "").trim().slice(0, 120),
   employeeId: String(data.employeeId || "").trim().slice(0, 80),
+  programId: String(data.programId || "").trim().slice(0, 128),
   logoUrl: String(data.logoUrl || "").trim().slice(0, 1000)
 });
 
@@ -213,6 +214,13 @@ export const createManagedUser = onCall(async (request) => {
   }
   if (password.length < 8) {
     throw new HttpsError("invalid-argument", "The temporary password must contain at least 8 characters.");
+  }
+  if (profile.role === "teacher") {
+    if (!profile.programId) throw new HttpsError("invalid-argument", "Assign the faculty member to a program.");
+    const program = await db.collection("programs").doc(profile.programId).get();
+    if (!program.exists || program.data()?.organizationId !== administrator.organizationId) {
+      throw new HttpsError("invalid-argument", "Select a valid program from this institution.");
+    }
   }
   await enforceSeatEntitlement(administrator.organizationId, profile.role);
 
@@ -482,6 +490,110 @@ export const listIndependentFaculty = onCall(async (request) => {
     };
   }));
   return { faculty: faculty.sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt))) };
+});
+
+export const createManagedInstitution = onCall(async (request) => {
+  await requirePlatformAdministrator(request);
+  const institutionName = String(request.data?.institutionName || "").trim().slice(0, 160);
+  const coordinatorName = String(request.data?.coordinatorName || "").trim().slice(0, 120);
+  const coordinatorEmail = String(request.data?.coordinatorEmail || "").trim().toLowerCase().slice(0, 254);
+  const password = String(request.data?.password || "");
+  const billingCycle = request.data?.billingCycle === "annual" ? "annual" : "monthly";
+  const billingMode = request.data?.billingMode === "complimentary" ? "complimentary" : "subscription";
+  if (institutionName.length < 3 || coordinatorName.length < 2 || !coordinatorEmail.includes("@") || password.length < 8) {
+    throw new HttpsError("invalid-argument", "Institution, coordinator, email, and a temporary password of at least 8 characters are required.");
+  }
+  let account;
+  try {
+    account = await getAuth().createUser({ email: coordinatorEmail, password, displayName: coordinatorName, emailVerified: false });
+    const organizationRef = db.collection("organizations").doc();
+    const now = new Date().toISOString();
+    const active = billingMode === "complimentary";
+    const organization = {
+      name: institutionName,
+      slug: `${slugify(institutionName) || "institution"}-${organizationRef.id.slice(0, 6).toLowerCase()}`,
+      ownerId: account.uid,
+      type: "institution",
+      status: active ? "active" : "pending_payment",
+      subscription: {
+        plan: `institution_${billingCycle}`,
+        billingCycle,
+        billingMode,
+        status: active ? "active" : "pending_payment",
+        facultyLimit: 25,
+        studentLimit: 1000,
+        activatedAt: active ? now : null,
+        paymentMethod: billingMode === "subscription" ? "upi" : "complimentary"
+      },
+      onboarding: { profile: true, programs: false, faculty: false, courses: false, students: false, sampleQuiz: false },
+      createdAt: now,
+      updatedAt: now
+    };
+    const batch = db.batch();
+    batch.set(organizationRef, organization);
+    batch.set(db.collection("users").doc(account.uid), {
+      uid: account.uid, email: coordinatorEmail, name: coordinatorName, role: "admin",
+      accountType: "institution_coordinator", organizationId: organizationRef.id,
+      onboardingCompleted: true, mustChangePassword: true, createdBy: request.auth.uid,
+      createdAt: now, updatedAt: now
+    });
+    batch.set(db.collection("memberships").doc(`${organizationRef.id}_${account.uid}`), {
+      organizationId: organizationRef.id, userId: account.uid, role: "coordinator", status: "active", createdAt: now
+    });
+    batch.set(db.collection("settings").doc(`${organizationRef.id}_institution`), {
+      organizationId: organizationRef.id, type: "institution", college: institutionName, updatedAt: now
+    });
+    await batch.commit();
+    return { uid: account.uid, organizationId: organizationRef.id, subscription: organization.subscription };
+  } catch (error) {
+    if (account?.uid) await getAuth().deleteUser(account.uid).catch(() => {});
+    console.error("Managed institution creation failed", error);
+    if (error instanceof HttpsError) throw error;
+    throw new HttpsError("internal", error.code === "auth/email-already-exists" ? "That coordinator email is already registered." : "Unable to create the institution.");
+  }
+});
+
+export const listManagedInstitutions = onCall(async (request) => {
+  await requirePlatformAdministrator(request);
+  const snapshot = await db.collection("organizations").where("type", "==", "institution").limit(500).get();
+  const institutions = await Promise.all(snapshot.docs.map(async document => {
+    const data = document.data();
+    const coordinator = data.ownerId ? await db.collection("users").doc(data.ownerId).get() : null;
+    return {
+      id: document.id,
+      name: data.name || "",
+      status: data.status || "",
+      coordinatorName: coordinator?.exists ? coordinator.data()?.name || "" : "",
+      coordinatorEmail: coordinator?.exists ? coordinator.data()?.email || "" : "",
+      billingCycle: data.subscription?.billingCycle || "",
+      billingMode: data.subscription?.billingMode || "",
+      subscriptionStatus: data.subscription?.status || "unknown",
+      paymentReference: data.subscription?.paymentReference || "",
+      createdAt: data.createdAt || ""
+    };
+  }));
+  return { institutions: institutions.sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt))) };
+});
+
+export const activateInstitutionSubscription = onCall(async (request) => {
+  await requirePlatformAdministrator(request);
+  const organizationId = String(request.data?.organizationId || "").trim();
+  const paymentReference = String(request.data?.paymentReference || "").trim().slice(0, 120);
+  if (!organizationId || !paymentReference) throw new HttpsError("invalid-argument", "Organization and UPI transaction reference are required.");
+  const reference = db.collection("organizations").doc(organizationId);
+  const organization = await reference.get();
+  if (!organization.exists || organization.data()?.type !== "institution") throw new HttpsError("not-found", "Institution not found.");
+  const now = new Date().toISOString();
+  await reference.update({
+    status: "active",
+    "subscription.status": "active",
+    "subscription.paymentMethod": "upi",
+    "subscription.paymentReference": paymentReference,
+    "subscription.activatedAt": now,
+    updatedAt: now
+  });
+  await db.collection("auditLogs").add({ action: "institution.subscription_activated", actorId: request.auth.uid, organizationId, paymentReference, createdAt: now });
+  return { active: true };
 });
 
 export const bootstrapOrganization = onCall(async (request) => {

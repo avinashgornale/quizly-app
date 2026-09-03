@@ -22,9 +22,9 @@ service cloud.firestore {
       return profile().organizationId;
     }
 
-    function hasTeachingEntitlement() {
+    function hasWorkspaceEntitlement() {
       let organization = get(/databases/$(database)/documents/organizations/$(organizationId())).data;
-      return organization.type != 'individual_faculty' || organization.subscription.status == 'active';
+      return !('type' in organization) || organization.subscription.status in ['active', 'trialing'];
     }
 
     function sameOrganization() {
@@ -42,9 +42,9 @@ service cloud.firestore {
     match /users/{userId} {
       allow read: if signedIn() &&
         (userId == request.auth.uid || resource.data.uid == request.auth.uid || (isStaff() && sameOrganization()));
-      allow create: if hasRole('admin') && newSameOrganization();
-      allow delete: if hasRole('admin') && sameOrganization();
-      allow update: if (hasRole('admin') && sameOrganization() && newSameOrganization()) ||
+      allow create: if hasRole('admin') && hasWorkspaceEntitlement() && newSameOrganization();
+      allow delete: if hasRole('admin') && hasWorkspaceEntitlement() && sameOrganization();
+      allow update: if (hasRole('admin') && hasWorkspaceEntitlement() && sameOrganization() && newSameOrganization()) ||
         (userId == request.auth.uid &&
          request.resource.data.organizationId == resource.data.organizationId &&
          request.resource.data.role == resource.data.role &&
@@ -54,18 +54,18 @@ service cloud.firestore {
 
     match /courses/{courseId} {
       allow read: if sameOrganization();
-      allow create: if newSameOrganization() && (hasRole('admin') ||
-        (hasRole('teacher') && hasTeachingEntitlement() && request.resource.data.teacherId == request.auth.uid));
-      allow update, delete: if sameOrganization() && newSameOrganization() && (hasRole('admin') ||
-        (hasRole('teacher') && hasTeachingEntitlement() && resource.data.teacherId == request.auth.uid));
+      allow create: if newSameOrganization() && hasWorkspaceEntitlement() && (hasRole('admin') ||
+        (hasRole('teacher') && request.resource.data.teacherId == request.auth.uid));
+      allow update, delete: if sameOrganization() && newSameOrganization() && hasWorkspaceEntitlement() && (hasRole('admin') ||
+        (hasRole('teacher') && resource.data.teacherId == request.auth.uid));
     }
 
     match /quizzes/{quizId} {
       allow read: if sameOrganization();
-      allow create: if newSameOrganization() && (hasRole('admin') ||
-        (hasRole('teacher') && hasTeachingEntitlement() && request.resource.data.teacherId == request.auth.uid));
-      allow update, delete: if sameOrganization() && newSameOrganization() && (hasRole('admin') ||
-        (hasRole('teacher') && hasTeachingEntitlement() && resource.data.teacherId == request.auth.uid));
+      allow create: if newSameOrganization() && hasWorkspaceEntitlement() && (hasRole('admin') ||
+        (hasRole('teacher') && request.resource.data.teacherId == request.auth.uid));
+      allow update, delete: if sameOrganization() && newSameOrganization() && hasWorkspaceEntitlement() && (hasRole('admin') ||
+        (hasRole('teacher') && resource.data.teacherId == request.auth.uid));
     }
 
     match /enrollments/{enrollmentId} {
@@ -95,8 +95,8 @@ service cloud.firestore {
 
     match /settings/{settingId} {
       allow read: if sameOrganization();
-      allow create: if hasRole('admin') && newSameOrganization();
-      allow update, delete: if hasRole('admin') && sameOrganization() && newSameOrganization();
+      allow create: if hasRole('admin') && hasWorkspaceEntitlement() && newSameOrganization();
+      allow update, delete: if hasRole('admin') && hasWorkspaceEntitlement() && sameOrganization() && newSameOrganization();
     }
 
     match /auditLogs/{logId} {
@@ -117,26 +117,26 @@ service cloud.firestore {
 
     match /departments/{departmentId} {
       allow read: if sameOrganization();
-      allow create: if hasRole('admin') && newSameOrganization();
-      allow update, delete: if hasRole('admin') && sameOrganization() && newSameOrganization();
+      allow create: if hasRole('admin') && hasWorkspaceEntitlement() && newSameOrganization();
+      allow update, delete: if hasRole('admin') && hasWorkspaceEntitlement() && sameOrganization() && newSameOrganization();
     }
 
     match /programs/{programId} {
       allow read: if sameOrganization();
-      allow create: if hasRole('admin') && newSameOrganization();
-      allow update, delete: if hasRole('admin') && sameOrganization() && newSameOrganization();
+      allow create: if hasRole('admin') && hasWorkspaceEntitlement() && newSameOrganization();
+      allow update, delete: if hasRole('admin') && hasWorkspaceEntitlement() && sameOrganization() && newSameOrganization();
     }
 
     match /batches/{batchId} {
       allow read: if sameOrganization();
-      allow create: if hasRole('admin') && newSameOrganization();
-      allow update, delete: if hasRole('admin') && sameOrganization() && newSameOrganization();
+      allow create: if hasRole('admin') && hasWorkspaceEntitlement() && newSameOrganization();
+      allow update, delete: if hasRole('admin') && hasWorkspaceEntitlement() && sameOrganization() && newSameOrganization();
     }
 
     match /academicTerms/{termId} {
       allow read: if sameOrganization();
-      allow create: if hasRole('admin') && newSameOrganization();
-      allow update, delete: if hasRole('admin') && sameOrganization() && newSameOrganization();
+      allow create: if hasRole('admin') && hasWorkspaceEntitlement() && newSameOrganization();
+      allow update, delete: if hasRole('admin') && hasWorkspaceEntitlement() && sameOrganization() && newSameOrganization();
     }
 
     match /invitations/{invitationId} {

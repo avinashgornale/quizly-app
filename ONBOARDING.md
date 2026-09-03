@@ -2,13 +2,13 @@
 
 ## New institution
 
-1. From the sign-in page, select **Onboard a new college**.
-2. The owner creates an account and receives a Firebase email-verification message.
-3. Quizly creates an isolated organization with a 30-day pilot entitlement.
-4. In **Onboarding**, the owner completes branding, departments, programs, batches, and an academic term.
-5. The owner invites faculty and students individually or pastes up to 500 CSV rows.
-6. Each invitee follows a single-use, seven-day link, creates a password, verifies email, and completes a role-specific profile.
-7. The owner activates the institution after the required checklist is complete.
+1. The Quizly super administrator opens **Institutions** and creates the institution plus its coordinator login.
+2. The super administrator selects complimentary access or a monthly/annual UPI subscription.
+3. Subscription-based institutions remain locked until the super administrator records the UPI transaction reference and activates access.
+4. The coordinator signs in, changes the temporary password, and creates programs under the institution.
+5. The coordinator creates faculty accounts and assigns each faculty member to a program.
+6. Faculty create courses within their assigned program and create quizzes under those courses.
+7. The coordinator can additionally invite students individually or import up to 500 CSV rows.
 
 ## CSV format
 
@@ -30,7 +30,7 @@ Invitation functions write email jobs to the Firestore `mail` collection in the 
 
 ## Subscription behavior
 
-New organizations receive an internal `pilot` subscription with a 30-day trial, 25 faculty seats, and 1,000 student seats. Backend account creation and invitation claims enforce expiration, suspension, cancellation, and seat limits. Real payment collection is intentionally not enabled until a payment provider is selected and credentials/webhooks are configured.
+Managed institutions receive either an active complimentary entitlement or a locked `pending_payment` monthly/annual subscription. The super administrator records the UPI transaction reference to activate a paid institution. Backend account creation, Firestore rules, and the application gate enforce payment status and seat limits. Automated UPI checkout/webhooks can be added after a payment provider is selected.
 
 ## Individual faculty
 
