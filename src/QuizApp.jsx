@@ -454,9 +454,27 @@ const AdminApp = ({ db, setDb, user, onLogout }) => {
   const [programName, setProgramName] = useState("");
   const [batchName, setBatchName] = useState("");
   const [termForm, setTermForm] = useState({ name: "", startsAt: "", endsAt: "" });
+  const [independentFaculty, setIndependentFaculty] = useState([]);
+  const [platformError, setPlatformError] = useState("");
 
   const teachers = db.users.filter(u => u.role === "teacher");
   const platformAdministrator = Boolean(user.isSuperAdmin || user.legacyVerificationExempt);
+
+  const loadIndependentFaculty = useCallback(async () => {
+    if (!platformAdministrator) return;
+    try {
+      const listIndependentFaculty = httpsCallable(functions, "listIndependentFaculty");
+      const result = await listIndependentFaculty({});
+      setIndependentFaculty(result.data.faculty || []);
+      setPlatformError("");
+    } catch (error) {
+      setPlatformError(error.message || "Unable to load independent faculty accounts.");
+    }
+  }, [platformAdministrator]);
+
+  useEffect(() => {
+    loadIndependentFaculty();
+  }, [loadIndependentFaculty]);
 
   //  "Credentials" tab only appears for admin 
   const tabs = [
@@ -610,6 +628,7 @@ const AdminApp = ({ db, setDb, user, onLogout }) => {
           plan: form.plan || "monthly",
           billingMode: form.billingMode || "subscription"
         });
+        await loadIndependentFaculty();
         alert(result.data.subscription.status === "active" ? "Complimentary faculty workspace created." : "Faculty workspace created and awaiting subscription payment.");
       } else if (form.id) {
         await setDoc(doc(firestore, "users", form.id), profile, { merge: true });
@@ -708,6 +727,7 @@ const AdminApp = ({ db, setDb, user, onLogout }) => {
             <h2 style={{ margin: "0 0 24px", fontWeight: 800, fontSize: 26, color: "#0f172a" }}>Admin Overview</h2>
             <div style={{ display: "flex", gap: 16, flexWrap: "wrap", marginBottom: 32 }}>
               <Stat icon="" label="Teachers"  value={teachers.length}                                      color="#2563eb" />
+              {platformAdministrator && <Stat icon="" label="Independent Faculty" value={independentFaculty.length} color="#0f766e" />}
               <Stat icon=""   label="Students"  value={db.users.filter(u => u.role === "student").length}    color="#059669" />
               <Stat icon=""   label="Courses"   value={db.courses.length}                                    color="#7c3aed" />
               <Stat icon=""   label="Quizzes"   value={db.quizzes.length}                                    color="#d97706" />
@@ -730,6 +750,18 @@ const AdminApp = ({ db, setDb, user, onLogout }) => {
                 <Btn onClick={() => openModal("user", { role: "student" })}>+ Add User</Btn>
               </div>
             </div>
+            {platformAdministrator && <div style={{ marginBottom: 32 }}>
+              <h3 style={{ margin: "0 0 12px", color: "#0f766e" }}>Independent faculty workspaces</h3>
+              {platformError && <p style={{ color: "#dc2626" }}>{platformError}</p>}
+              {independentFaculty.length === 0
+                ? <Card><p style={{ margin: 0, color: "#64748b" }}>No independent faculty accounts yet.</p></Card>
+                : <div style={{ display: "grid", gap: 12 }}>{independentFaculty.map(faculty => <Card key={faculty.uid} style={{ padding: "14px 20px" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", gap: 16, alignItems: "center" }}>
+                    <div><div style={{ fontWeight: 700 }}>{faculty.name}</div><div style={{ fontSize: 13, color: "#64748b" }}>{faculty.email}</div></div>
+                    <div style={{ textAlign: "right", fontSize: 13 }}><strong>{faculty.billingCycle || "monthly"}</strong><div style={{ color: faculty.subscriptionStatus === "active" ? "#15803d" : "#b45309" }}>{faculty.subscriptionStatus.replaceAll("_", " ")}</div></div>
+                  </div>
+                </Card>)}</div>}
+            </div>}
            {["teacher", "student"].map(role => (
               <div key={role} style={{ marginBottom: 32 }}>
                 <h3 style={{ margin: "0 0 12px", fontWeight: 700, color: roleColor[role], textTransform: "capitalize" }}>

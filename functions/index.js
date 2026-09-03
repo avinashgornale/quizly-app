@@ -460,6 +460,30 @@ export const createIndependentFaculty = onCall(async (request) => {
   }
 });
 
+export const listIndependentFaculty = onCall(async (request) => {
+  await requirePlatformAdministrator(request);
+  const snapshot = await db.collection("users").where("accountType", "==", "individual_faculty").limit(500).get();
+  const faculty = await Promise.all(snapshot.docs.map(async document => {
+    const profile = document.data();
+    const organization = profile.organizationId
+      ? await db.collection("organizations").doc(profile.organizationId).get()
+      : null;
+    const subscription = organization?.exists ? organization.data()?.subscription || {} : {};
+    return {
+      uid: document.id,
+      name: profile.name || "",
+      email: profile.email || "",
+      organizationId: profile.organizationId || "",
+      plan: subscription.plan || "",
+      billingCycle: subscription.billingCycle || "",
+      billingMode: subscription.billingMode || "",
+      subscriptionStatus: subscription.status || "unknown",
+      createdAt: profile.createdAt || ""
+    };
+  }));
+  return { faculty: faculty.sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt))) };
+});
+
 export const bootstrapOrganization = onCall(async (request) => {
   if (!request.auth) throw new HttpsError("unauthenticated", "Please create and sign in to your account first.");
   const name = String(request.data?.name || "").trim().slice(0, 160);
