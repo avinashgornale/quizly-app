@@ -1,6 +1,6 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import App from "./App";
-import { isQuizAccessValid } from "./QuizApp";
+import { AdminApp, isQuizAccessValid } from "./QuizApp";
 
 jest.mock("./firebase", () => ({ auth: {}, firestore: {}, functions: {} }));
 
@@ -14,7 +14,9 @@ jest.mock("firebase/auth", () => ({
   signOut: jest.fn()
 }));
 
-jest.mock("firebase/functions", () => ({ httpsCallable: jest.fn() }));
+jest.mock("firebase/functions", () => ({
+  httpsCallable: jest.fn(() => jest.fn().mockResolvedValue({ data: { faculty: [], institutions: [] } }))
+}));
 
 jest.mock("firebase/firestore", () => ({
   collection: jest.fn(),
@@ -62,4 +64,15 @@ test("opens individual faculty subscription signup", async () => {
   fireEvent.click(await screen.findByRole("button", { name: /sign up as individual faculty/i }));
   expect(screen.getByRole("heading", { name: /individual faculty signup/i })).toBeInTheDocument();
   expect(screen.getByLabelText(/subscription/i)).toHaveValue("monthly");
+});
+
+test("super admin sees the platform control center without institution-level duplicates", async () => {
+  const emptyDb = { users: [], courses: [], quizzes: [], attempts: [], enrollments: [], quizSessions: [], integrityLogs: [], settings: [], organizations: [], departments: [], programs: [], batches: [], academicTerms: [] };
+  render(<AdminApp db={emptyDb} setDb={jest.fn()} user={{ id: "admin", name: "Super Admin", role: "admin", isSuperAdmin: true }} onLogout={jest.fn()} />);
+  expect(screen.getByRole("heading", { name: /quizly control center/i })).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: /^institutions$/i })).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: /^independent faculty$/i })).toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: /^users$/i })).not.toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: /^courses$/i })).not.toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: /^onboarding$/i })).not.toBeInTheDocument();
 });

@@ -439,7 +439,7 @@ const Sidebar = ({ user, activeTab, setTab, tabs, onLogout }) => (
 );
 
 //  ADMIN MODULE 
-const AdminApp = ({ db, setDb, user, onLogout }) => {
+export const AdminApp = ({ db, setDb, user, onLogout }) => {
   const [tab, setTab]     = useState("overview");
   const [modal, setModal] = useState(null);
   const [form, setForm]   = useState({});
@@ -490,20 +490,22 @@ const AdminApp = ({ db, setDb, user, onLogout }) => {
     loadManagedInstitutions();
   }, [loadIndependentFaculty, loadManagedInstitutions]);
 
-  //  "Credentials" tab only appears for admin 
-  const tabs = [
-   { id: "overview",     label: "Overview",     icon: "" },
-   { id: "users",        label: "Users",         icon: "" },
-   { id: "courses",      label: "Courses",       icon: "" },
-   { id: "quizzes",      label: "All Quizzes",   icon: "" },
-   { id: "integrity",    label: "Exam Integrity", icon: "" },
-   { id: "institution",  label: "Institution", icon: "" },
-   { id: "onboarding", label: "Onboarding", icon: "" },
-    ...(platformAdministrator ? [{ id: "platformInstitutions", label: "Institutions", icon: "" }] : []),
-    ...(user.role === "admin"
-      ? [{ id: "credentials", label: "Accounts", icon: "" }]
-      : []),
-  ];
+  const tabs = platformAdministrator
+    ? [
+        { id: "overview", label: "Control Center", icon: "" },
+        { id: "platformInstitutions", label: "Institutions", icon: "" },
+        { id: "platformFaculty", label: "Independent Faculty", icon: "" }
+      ]
+    : [
+        { id: "overview", label: "Overview", icon: "" },
+        { id: "users", label: "Users", icon: "" },
+        { id: "courses", label: "Courses", icon: "" },
+        { id: "quizzes", label: "All Quizzes", icon: "" },
+        { id: "integrity", label: "Exam Integrity", icon: "" },
+        { id: "institution", label: "Institution", icon: "" },
+        { id: "onboarding", label: "Onboarding", icon: "" },
+        { id: "credentials", label: "Accounts", icon: "" }
+      ];
 
   const openModal = (type, data = {}) => { setModal(type); setForm(data); setErr(""); };
   const closeModal = () => { setModal(null); setForm({}); setErr(""); };
@@ -764,21 +766,29 @@ const AdminApp = ({ db, setDb, user, onLogout }) => {
       <main style={{ flex: 1, padding: 32, background: "#f8fafc", minHeight: "100vh" }}>
 
        {tab === "overview" && (
-          <>
-            <h2 style={{ margin: "0 0 24px", fontWeight: 800, fontSize: 26, color: "#0f172a" }}>Admin Overview</h2>
-            <div style={{ display: "flex", gap: 16, flexWrap: "wrap", marginBottom: 32 }}>
-              <Stat icon="" label="Teachers"  value={teachers.length}                                      color="#2563eb" />
-              {platformAdministrator && <Stat icon="" label="Independent Faculty" value={independentFaculty.length} color="#0f766e" />}
-              <Stat icon=""   label="Students"  value={db.users.filter(u => u.role === "student").length}    color="#059669" />
-              <Stat icon=""   label="Courses"   value={db.courses.length}                                    color="#7c3aed" />
-              <Stat icon=""   label="Quizzes"   value={db.quizzes.length}                                    color="#d97706" />
-              <Stat icon=""   label="Attempts"  value={db.attempts.length}                                   color="#dc2626" />
+          platformAdministrator ? <>
+            <div style={{ marginBottom: 26 }}><div style={{ color: "#2563eb", fontWeight: 800, fontSize: 12, letterSpacing: 1.2, textTransform: "uppercase" }}>Platform administration</div><h2 style={{ margin: "6px 0", fontWeight: 900, fontSize: 30, color: "#0f172a" }}>Quizly Control Center</h2><p style={{ color: "#64748b", margin: 0 }}>Manage customer institutions, subscriptions, and independent faculty from one place.</p></div>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(180px,1fr))", gap: 16, marginBottom: 28 }}>
+              <Stat label="Institutions" value={managedInstitutions.length} color="#2563eb" />
+              <Stat label="Active institutions" value={managedInstitutions.filter(item => item.subscriptionStatus === "active").length} color="#059669" />
+              <Stat label="Awaiting UPI" value={managedInstitutions.filter(item => item.subscriptionStatus === "pending_payment").length} color="#d97706" />
+              <Stat label="Independent faculty" value={independentFaculty.length} color="#7c3aed" />
             </div>
-            <Card>
-              <h3 style={{ margin: "0 0 12px", fontSize: 15, fontWeight: 700 }}>QR-Based Access</h3>
-              <p style={{ color: "#64748b", fontSize: 14, margin: "0 0 16px" }}>Each course has a unique QR code. Share it with students to grant access. Students <strong>cannot</strong> browse courses freely  they must scan or enter the code.</p>
-              <Btn onClick={() => setTab("courses")}>View Course QR Codes </Btn>
-            </Card>
+            {platformError && <p style={{ color: "#dc2626" }}>{platformError}</p>}
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(300px,1fr))", gap: 18 }}>
+              <Card><h3 style={{ marginTop: 0 }}>Institution onboarding</h3><p style={{ color: "#64748b" }}>Create a coordinator login, choose complimentary or subscription access, and record UPI activation.</p><Btn onClick={() => setTab("platformInstitutions")}>Manage institutions</Btn></Card>
+              <Card><h3 style={{ marginTop: 0 }}>Independent educators</h3><p style={{ color: "#64748b" }}>Review self-service and super-admin-created faculty workspaces without mixing them into institution users.</p><Btn variant="purple" onClick={() => setTab("platformFaculty")}>Manage faculty</Btn></Card>
+            </div>
+          </> : <>
+            <h2 style={{ margin: "0 0 24px", fontWeight: 800, fontSize: 26, color: "#0f172a" }}>Institution Overview</h2>
+            <div style={{ display: "flex", gap: 16, flexWrap: "wrap", marginBottom: 32 }}>
+              <Stat label="Teachers" value={teachers.length} color="#2563eb" />
+              <Stat label="Students" value={db.users.filter(u => u.role === "student").length} color="#059669" />
+              <Stat label="Courses" value={db.courses.length} color="#7c3aed" />
+              <Stat label="Quizzes" value={db.quizzes.length} color="#d97706" />
+              <Stat label="Attempts" value={db.attempts.length} color="#dc2626" />
+            </div>
+            <Card><h3 style={{ margin: "0 0 12px", fontSize: 15 }}>QR-based access</h3><p style={{ color: "#64748b", fontSize: 14 }}>Students access assigned courses and active quizzes through controlled codes.</p><Btn onClick={() => setTab("courses")}>View courses</Btn></Card>
           </>
         )}
 
@@ -801,27 +811,30 @@ const AdminApp = ({ db, setDb, user, onLogout }) => {
           </>
         )}
 
+       {tab === "platformFaculty" && platformAdministrator && (
+          <>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24 }}>
+              <div><h2 style={{ margin: 0 }}>Independent faculty</h2><p style={{ color: "#64748b" }}>Standalone educator workspaces and their subscription status.</p></div>
+              <Btn variant="purple" onClick={() => openModal("user", { role: "teacher", independent: true, plan: "monthly", billingMode: "subscription" })}>+ New independent faculty</Btn>
+            </div>
+            {platformError && <p style={{ color: "#dc2626" }}>{platformError}</p>}
+            {independentFaculty.length === 0
+              ? <Card><p style={{ margin: 0, color: "#64748b" }}>No independent faculty accounts yet.</p></Card>
+              : <div style={{ display: "grid", gap: 12 }}>{independentFaculty.map(faculty => <Card key={faculty.uid} style={{ padding: "16px 20px" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", gap: 18, alignItems: "center" }}>
+                  <div><div style={{ fontWeight: 800 }}>{faculty.name}</div><div style={{ fontSize: 13, color: "#64748b", marginTop: 3 }}>{faculty.email}</div></div>
+                  <div style={{ textAlign: "right", fontSize: 13 }}><strong>{faculty.billingMode === "complimentary" ? "Complimentary" : faculty.billingCycle || "monthly"}</strong><div style={{ color: faculty.subscriptionStatus === "active" ? "#15803d" : "#b45309", textTransform: "capitalize", marginTop: 3 }}>{faculty.subscriptionStatus.replaceAll("_", " ")}</div></div>
+                </div>
+              </Card>)}</div>}
+          </>
+        )}
+
        {tab === "users" && (
           <>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24 }}>
               <h2 style={{ margin: 0, fontWeight: 800, fontSize: 26, color: "#0f172a" }}>User Management</h2>
-              <div style={{ display: "flex", gap: 10 }}>
-                {platformAdministrator && <Btn variant="purple" onClick={() => openModal("user", { role: "teacher", independent: true, plan: "monthly", billingMode: "subscription" })}>+ Independent faculty</Btn>}
-                <Btn onClick={() => openModal("user", { role: "student" })}>+ Add User</Btn>
-              </div>
+              <Btn onClick={() => openModal("user", { role: "student" })}>+ Add User</Btn>
             </div>
-            {platformAdministrator && <div style={{ marginBottom: 32 }}>
-              <h3 style={{ margin: "0 0 12px", color: "#0f766e" }}>Independent faculty workspaces</h3>
-              {platformError && <p style={{ color: "#dc2626" }}>{platformError}</p>}
-              {independentFaculty.length === 0
-                ? <Card><p style={{ margin: 0, color: "#64748b" }}>No independent faculty accounts yet.</p></Card>
-                : <div style={{ display: "grid", gap: 12 }}>{independentFaculty.map(faculty => <Card key={faculty.uid} style={{ padding: "14px 20px" }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", gap: 16, alignItems: "center" }}>
-                    <div><div style={{ fontWeight: 700 }}>{faculty.name}</div><div style={{ fontSize: 13, color: "#64748b" }}>{faculty.email}</div></div>
-                    <div style={{ textAlign: "right", fontSize: 13 }}><strong>{faculty.billingCycle || "monthly"}</strong><div style={{ color: faculty.subscriptionStatus === "active" ? "#15803d" : "#b45309" }}>{faculty.subscriptionStatus.replaceAll("_", " ")}</div></div>
-                  </div>
-                </Card>)}</div>}
-            </div>}
            {["teacher", "student"].map(role => (
               <div key={role} style={{ marginBottom: 32 }}>
                 <h3 style={{ margin: "0 0 12px", fontWeight: 700, color: roleColor[role], textTransform: "capitalize" }}>
