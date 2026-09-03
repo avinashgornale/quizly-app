@@ -456,6 +456,7 @@ const AdminApp = ({ db, setDb, user, onLogout }) => {
   const [termForm, setTermForm] = useState({ name: "", startsAt: "", endsAt: "" });
 
   const teachers = db.users.filter(u => u.role === "teacher");
+  const platformAdministrator = Boolean(user.isSuperAdmin || user.legacyVerificationExempt);
 
   //  "Credentials" tab only appears for admin 
   const tabs = [
@@ -601,7 +602,16 @@ const AdminApp = ({ db, setDb, user, onLogout }) => {
         logoUrl: form.logoUrl || "",
         updatedAt: new Date().toISOString()
       };
-      if (form.id) {
+      if (form.independent) {
+        const createIndependentFaculty = httpsCallable(functions, "createIndependentFaculty");
+        const result = await createIndependentFaculty({
+          ...profile,
+          password: form.password,
+          plan: form.plan || "monthly",
+          billingMode: form.billingMode || "subscription"
+        });
+        alert(result.data.subscription.status === "active" ? "Complimentary faculty workspace created." : "Faculty workspace created and awaiting subscription payment.");
+      } else if (form.id) {
         await setDoc(doc(firestore, "users", form.id), profile, { merge: true });
       } else {
         const createManagedUser = httpsCallable(functions, "createManagedUser");
@@ -715,7 +725,10 @@ const AdminApp = ({ db, setDb, user, onLogout }) => {
           <>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24 }}>
               <h2 style={{ margin: 0, fontWeight: 800, fontSize: 26, color: "#0f172a" }}>User Management</h2>
-              <Btn onClick={() => openModal("user", { role: "student" })}>+ Add User</Btn>
+              <div style={{ display: "flex", gap: 10 }}>
+                {platformAdministrator && <Btn variant="purple" onClick={() => openModal("user", { role: "teacher", independent: true, plan: "monthly", billingMode: "subscription" })}>+ Independent faculty</Btn>}
+                <Btn onClick={() => openModal("user", { role: "student" })}>+ Add User</Btn>
+              </div>
             </div>
            {["teacher", "student"].map(role => (
               <div key={role} style={{ marginBottom: 32 }}>
@@ -955,13 +968,17 @@ const AdminApp = ({ db, setDb, user, onLogout }) => {
       </main>
 
      {modal === "user" && (
-        <Modal title={form.id ? "Edit User" : "Add User"} onClose={closeModal}>
+        <Modal title={form.independent ? "Create independent faculty" : form.id ? "Edit User" : "Add User"} onClose={closeModal}>
           <Input label="Full Name"     value={form.name     || ""} onChange={e => setForm({ ...form, name:     e.target.value })} />
           <Input label="FACULTY ID/USN" value={form.usn     || ""} onChange={e => setForm({ ...form, usn:      e.target.value })} />
           <Input label="Email"         value={form.email    || ""} onChange={e => setForm({ ...form, email:    e.target.value })} type="email" />
           <Input label="Password"      value={form.password || ""} onChange={e => setForm({ ...form, password: e.target.value })} />
           <Select label="Role" value={form.role || "student"} onChange={e => setForm({ ...form, role: e.target.value })}
             options={[{ value: "teacher", label: "Teacher" }, { value: "student", label: "Student" }]} />
+          {form.independent && <>
+            <Select label="Plan" value={form.plan || "monthly"} onChange={e => setForm({ ...form, plan: e.target.value })} options={[{ value: "monthly", label: "Monthly" }, { value: "annual", label: "Annual" }]} />
+            <Select label="Access" value={form.billingMode || "subscription"} onChange={e => setForm({ ...form, billingMode: e.target.value })} options={[{ value: "subscription", label: "Subscription required" }, { value: "complimentary", label: "Complimentary — no charge" }]} />
+          </>}
           {form.role === "teacher" && <>
             <Input label="College Name" value={form.college || ""} onChange={e => setForm({ ...form, college: e.target.value })} />
             <Input label="Department Name" value={form.department || ""} onChange={e => setForm({ ...form, department: e.target.value })} />
@@ -972,7 +989,7 @@ const AdminApp = ({ db, setDb, user, onLogout }) => {
          {err && <p style={{ color: "#dc2626", fontSize: 13 }}>{err}</p>}
           <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
             <Btn variant="ghost" onClick={closeModal}>Cancel</Btn>
-            <Btn onClick={saveUser}>{form.id ? "Save Changes" : "Add User"}</Btn>
+            <Btn onClick={saveUser}>{form.independent ? "Create Faculty Workspace" : form.id ? "Save Changes" : "Add User"}</Btn>
           </div>
         </Modal>
       )}
@@ -3023,6 +3040,63 @@ const VerifyEmailPage = ({ onVerified, onLogout }) => {
   </Card></div>;
 };
 
+const SubscriptionPendingPage = ({ organization, onLogout }) => {
+  const subscription = organization?.subscription || {};
+  return <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "#f8fafc", padding: 24 }}>
+    <Card style={{ width: 520, textAlign: "center" }}>
+      <h2 style={{ marginTop: 0 }}>Activate your Quizly subscription</h2>
+      <p style={{ color: "#475569" }}>Your individual faculty workspace is ready. The selected <strong>{subscription.billingCycle || "monthly"}</strong> plan must be paid and activated before you can create courses and quizzes.</p>
+      <p style={{ color: "#64748b", fontSize: 13 }}>Online checkout will appear here after the payment gateway is connected. Until then, contact the Quizly administrator for payment and manual activation.</p>
+      <Btn variant="ghost" onClick={onLogout}>Logout</Btn>
+    </Card>
+  </div>;
+};
+
+const IndividualFacultySignupPage = ({ onCancel, onComplete }) => {
+  const [form, setForm] = useState({ name: "", email: "", password: "", plan: "monthly" });
+  const [error, setError] = useState("");
+  const [saving, setSaving] = useState(false);
+  const submit = async () => {
+    if (!form.name.trim() || !form.email.trim() || form.password.length < 8) return setError("Enter your name, email, and a password of at least 8 characters.");
+    setSaving(true);
+    setError("");
+    let credential;
+    try {
+      credential = await createUserWithEmailAndPassword(auth, form.email.trim(), form.password);
+      await sendEmailVerification(credential.user);
+      const bootstrap = httpsCallable(functions, "bootstrapIndividualFaculty");
+      const result = await bootstrap({ name: form.name.trim(), plan: form.plan });
+      onComplete({
+        id: credential.user.uid,
+        uid: credential.user.uid,
+        email: credential.user.email,
+        name: form.name.trim(),
+        role: "teacher",
+        accountType: "individual_faculty",
+        organizationId: result.data.organizationId,
+        onboardingCompleted: false
+      });
+    } catch (signupError) {
+      if (credential?.user) await deleteAuthUser(credential.user).catch(() => {});
+      setError(signupError.message || "Unable to create the individual faculty account.");
+    } finally {
+      setSaving(false);
+    }
+  };
+  return <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "#f8fafc", padding: 24 }}>
+    <Card style={{ width: 520 }}>
+      <h2 style={{ marginTop: 0 }}>Individual faculty signup</h2>
+      <p style={{ color: "#64748b" }}>Create a private teaching workspace. Access begins after email verification and subscription activation.</p>
+      <Input label="Full name" value={form.name} onChange={event => setForm({ ...form, name: event.target.value })} />
+      <Input label="Email" type="email" value={form.email} onChange={event => setForm({ ...form, email: event.target.value })} />
+      <Input label="Password" type="password" value={form.password} onChange={event => setForm({ ...form, password: event.target.value })} />
+      <Select label="Subscription" value={form.plan} onChange={event => setForm({ ...form, plan: event.target.value })} options={[{ value: "monthly", label: "Monthly plan" }, { value: "annual", label: "Annual plan" }]} />
+      {error && <p style={{ color: "#dc2626" }}>{error}</p>}
+      <div style={{ display: "flex", gap: 10 }}><Btn variant="ghost" onClick={onCancel}>Back</Btn><Btn disabled={saving} onClick={submit}>{saving ? "Creating..." : "Continue to subscription"}</Btn></div>
+    </Card>
+  </div>;
+};
+
 const OrganizationSignupPage = ({ onCancel, onComplete }) => {
   const [form, setForm] = useState({ institution: "", ownerName: "", email: "", password: "" });
   const [error, setError] = useState("");
@@ -3144,7 +3218,7 @@ const LegacyOrganizationSetup = ({ user, onComplete }) => {
 };
 
 //  LOGIN PAGE 
-const LoginPage = ({ onLogin, onCreateInstitution }) => {
+const LoginPage = ({ onLogin, onCreateInstitution, onCreateIndividual }) => {
   const [email, setEmail]       = useState("");
   const [password, setPassword] = useState("");
   const [err, setErr]           = useState("");
@@ -3260,6 +3334,9 @@ const handleResetPassword = async () => {
           </button>
           <button onClick={onCreateInstitution} style={{ marginTop: 10, width: "100%", background: "transparent", border: "none", color: "#7c3aed", cursor: "pointer", fontFamily: "inherit", fontWeight: 700 }}>
             Onboard a new college
+          </button>
+          <button onClick={onCreateIndividual} style={{ marginTop: 10, width: "100%", background: "transparent", border: "none", color: "#059669", cursor: "pointer", fontFamily: "inherit", fontWeight: 700 }}>
+            Sign up as individual faculty
           </button>
         </div>
       </div>
@@ -3481,7 +3558,8 @@ const invitationToken = new URLSearchParams(window.location.search).get("invite"
   if (!currentUser) {
     if (invitationToken) return <InvitationSignupPage token={invitationToken} onCancel={() => window.location.assign(window.location.pathname)} onComplete={setCurrentUser} />;
     if (authMode === "organization") return <OrganizationSignupPage onCancel={() => setAuthMode("login")} onComplete={setCurrentUser} />;
-    return <LoginPage onLogin={setCurrentUser} onCreateInstitution={() => setAuthMode("organization")} />;
+    if (authMode === "individual") return <IndividualFacultySignupPage onCancel={() => setAuthMode("login")} onComplete={setCurrentUser} />;
+    return <LoginPage onLogin={setCurrentUser} onCreateInstitution={() => setAuthMode("organization")} onCreateIndividual={() => setAuthMode("individual")} />;
   }
 
   const legacyAdministratorExempt = currentUser.role === "admin" && (!currentUser.organizationId || currentUser.legacyVerificationExempt);
@@ -3501,6 +3579,11 @@ const invitationToken = new URLSearchParams(window.location.search).get("invite"
         Loading your workspace...
       </div>
     );
+  }
+
+  const activeOrganization = db.organizations[0];
+  if (currentUser.accountType === "individual_faculty" && activeOrganization?.subscription?.status !== "active") {
+    return <SubscriptionPendingPage organization={activeOrganization} onLogout={logout} />;
   }
 
   if (!currentUser.onboardingCompleted && currentUser.role !== "admin") {

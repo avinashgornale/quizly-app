@@ -22,6 +22,11 @@ service cloud.firestore {
       return profile().organizationId;
     }
 
+    function hasTeachingEntitlement() {
+      let organization = get(/databases/$(database)/documents/organizations/$(organizationId())).data;
+      return organization.type != 'individual_faculty' || organization.subscription.status == 'active';
+    }
+
     function sameOrganization() {
       return signedIn() && resource.data.organizationId == organizationId();
     }
@@ -50,17 +55,17 @@ service cloud.firestore {
     match /courses/{courseId} {
       allow read: if sameOrganization();
       allow create: if newSameOrganization() && (hasRole('admin') ||
-        (hasRole('teacher') && request.resource.data.teacherId == request.auth.uid));
+        (hasRole('teacher') && hasTeachingEntitlement() && request.resource.data.teacherId == request.auth.uid));
       allow update, delete: if sameOrganization() && newSameOrganization() && (hasRole('admin') ||
-        (hasRole('teacher') && resource.data.teacherId == request.auth.uid));
+        (hasRole('teacher') && hasTeachingEntitlement() && resource.data.teacherId == request.auth.uid));
     }
 
     match /quizzes/{quizId} {
       allow read: if sameOrganization();
       allow create: if newSameOrganization() && (hasRole('admin') ||
-        (hasRole('teacher') && request.resource.data.teacherId == request.auth.uid));
+        (hasRole('teacher') && hasTeachingEntitlement() && request.resource.data.teacherId == request.auth.uid));
       allow update, delete: if sameOrganization() && newSameOrganization() && (hasRole('admin') ||
-        (hasRole('teacher') && resource.data.teacherId == request.auth.uid));
+        (hasRole('teacher') && hasTeachingEntitlement() && resource.data.teacherId == request.auth.uid));
     }
 
     match /enrollments/{enrollmentId} {

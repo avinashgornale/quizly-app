@@ -57,3 +57,10 @@ test("opens the new-institution onboarding flow", async () => {
   expect(screen.getByRole("heading", { name: /start a new institution/i })).toBeInTheDocument();
   expect(screen.getByLabelText(/college \/ institution name/i)).toBeInTheDocument();
 });
+
+test("opens individual faculty subscription signup", async () => {
+  render(<App />);
+  fireEvent.click(await screen.findByRole("button", { name: /sign up as individual faculty/i }));
+  expect(screen.getByRole("heading", { name: /individual faculty signup/i })).toBeInTheDocument();
+  expect(screen.getByLabelText(/subscription/i)).toHaveValue("monthly");
+});

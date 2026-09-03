@@ -84,6 +84,7 @@ export const generateQuizQuestions = onCall(
     if (!["admin", "teacher"].includes(role)) {
       throw new HttpsError("permission-denied", "Only admins and teachers can generate questions.");
     }
+    await enforceTeachingEntitlement(userSnap.data());
 
     const topic = String(request.data?.topic || "").trim();
     const sourceText = String(request.data?.sourceText || "").trim().slice(0, 24000);
@@ -148,6 +149,16 @@ const requireAdmin = async (request) => {
   return profile.data();
 };
 
+const isPlatformAdministrator = (profile = {}) => Boolean(profile.isSuperAdmin || profile.legacyVerificationExempt);
+
+const requirePlatformAdministrator = async (request) => {
+  const profile = await requireAdmin(request);
+  if (!isPlatformAdministrator(profile)) {
+    throw new HttpsError("permission-denied", "Quizly super-administrator access is required.");
+  }
+  return profile;
+};
+
 const enforceSeatEntitlement = async (organizationId, role) => {
   const organization = await db.collection("organizations").doc(organizationId).get();
   if (!organization.exists) throw new HttpsError("failed-precondition", "Organization not found.");
@@ -167,6 +178,14 @@ const enforceSeatEntitlement = async (organizationId, role) => {
     .get();
   if (countSnapshot.data().count >= limit) {
     throw new HttpsError("resource-exhausted", `${role === "teacher" ? "Faculty" : "Student"} seat limit reached.`);
+  }
+};
+
+const enforceTeachingEntitlement = async (profile = {}) => {
+  if (profile.accountType !== "individual_faculty") return;
+  const organization = await db.collection("organizations").doc(profile.organizationId || "missing").get();
+  if (!organization.exists || organization.data()?.subscription?.status !== "active") {
+    throw new HttpsError("permission-denied", "Activate the individual faculty subscription before using teaching tools.");
   }
 };
 
@@ -276,6 +295,7 @@ export const rotateQuizAccess = onCall(async (request) => {
     throw new HttpsError("not-found", "The quiz or user profile was not found.");
   }
   const role = profileSnap.data()?.role;
+  await enforceTeachingEntitlement(profileSnap.data());
   const quiz = quizSnap.data();
   if (role !== "admin" && !(role === "teacher" && quiz.teacherId === request.auth.uid)) {
     throw new HttpsError("permission-denied", "You cannot manage access for this quiz.");
@@ -324,6 +344,120 @@ const organizationDocument = ({ name, ownerId, slug }) => ({
   },
   createdAt: new Date().toISOString(),
   updatedAt: new Date().toISOString()
+});
+
+const individualOrganizationDocument = ({ name, ownerId, slug, plan, billingMode = "subscription" }) => ({
+  name,
+  slug,
+  ownerId,
+  type: "individual_faculty",
+  status: billingMode === "complimentary" ? "active" : "pending_payment",
+  subscription: {
+    plan: plan === "annual" ? "individual_annual" : "individual_monthly",
+    billingCycle: plan === "annual" ? "annual" : "monthly",
+    billingMode,
+    status: billingMode === "complimentary" ? "active" : "pending_payment",
+    facultyLimit: 1,
+    studentLimit: 250,
+    activatedAt: billingMode === "complimentary" ? new Date().toISOString() : null
+  },
+  onboarding: { profile: false, courses: false, students: false, sampleQuiz: false },
+  createdAt: new Date().toISOString(),
+  updatedAt: new Date().toISOString()
+});
+
+const provisionIndividualFaculty = async ({ uid, email, name, plan, billingMode, createdBy }) => {
+  const organizationRef = db.collection("organizations").doc();
+  const organizationName = `${name}'s Quizly workspace`;
+  const organization = individualOrganizationDocument({
+    name: organizationName,
+    ownerId: uid,
+    slug: `${slugify(name) || "faculty"}-${organizationRef.id.slice(0, 6).toLowerCase()}`,
+    plan,
+    billingMode
+  });
+  const now = new Date().toISOString();
+  const batch = db.batch();
+  batch.set(organizationRef, organization);
+  batch.set(db.collection("users").doc(uid), {
+    uid,
+    email,
+    name,
+    role: "teacher",
+    accountType: "individual_faculty",
+    organizationId: organizationRef.id,
+    onboardingCompleted: false,
+    mustChangePassword: Boolean(createdBy),
+    createdBy: createdBy || "self_service",
+    createdAt: now,
+    updatedAt: now
+  });
+  batch.set(db.collection("memberships").doc(`${organizationRef.id}_${uid}`), {
+    organizationId: organizationRef.id,
+    userId: uid,
+    role: "owner",
+    status: "active",
+    createdAt: now
+  });
+  await batch.commit();
+  return { organizationId: organizationRef.id, organization };
+};
+
+export const bootstrapIndividualFaculty = onCall(async (request) => {
+  if (!request.auth) throw new HttpsError("unauthenticated", "Please create and sign in to your account first.");
+  const name = String(request.data?.name || "").trim().slice(0, 120);
+  const plan = request.data?.plan === "annual" ? "annual" : "monthly";
+  if (name.length < 2) throw new HttpsError("invalid-argument", "Your name is required.");
+  const userRef = db.collection("users").doc(request.auth.uid);
+  const existing = await userRef.get();
+  if (existing.exists && existing.data()?.organizationId) {
+    throw new HttpsError("already-exists", "This account already has a Quizly workspace.");
+  }
+  return provisionIndividualFaculty({
+    uid: request.auth.uid,
+    email: String(request.auth.token.email || "").toLowerCase(),
+    name,
+    plan,
+    billingMode: "subscription",
+    createdBy: null
+  });
+});
+
+export const createIndependentFaculty = onCall(async (request) => {
+  await requirePlatformAdministrator(request);
+  const profile = cleanProfile({ ...request.data, role: "teacher" });
+  const password = String(request.data?.password || "");
+  const plan = request.data?.plan === "annual" ? "annual" : "monthly";
+  const billingMode = request.data?.billingMode === "complimentary" ? "complimentary" : "subscription";
+  if (!profile.name || !profile.email || password.length < 8) {
+    throw new HttpsError("invalid-argument", "Name, email, and a temporary password of at least 8 characters are required.");
+  }
+  let account;
+  try {
+    account = await getAuth().createUser({ email: profile.email, password, displayName: profile.name, emailVerified: false });
+    const result = await provisionIndividualFaculty({
+      uid: account.uid,
+      email: profile.email,
+      name: profile.name,
+      plan,
+      billingMode,
+      createdBy: request.auth.uid
+    });
+    await db.collection("auditLogs").add({
+      action: "individual_faculty.created",
+      actorId: request.auth.uid,
+      targetId: account.uid,
+      organizationId: result.organizationId,
+      billingMode,
+      createdAt: new Date().toISOString()
+    });
+    return { uid: account.uid, organizationId: result.organizationId, subscription: result.organization.subscription };
+  } catch (error) {
+    if (account?.uid) await getAuth().deleteUser(account.uid).catch(() => {});
+    console.error("Independent faculty creation failed", error);
+    if (error instanceof HttpsError) throw error;
+    throw new HttpsError("internal", error.code === "auth/email-already-exists" ? "That email is already registered." : "Unable to create the faculty account.");
+  }
 });
 
 export const bootstrapOrganization = onCall(async (request) => {

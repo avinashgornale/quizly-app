@@ -31,3 +31,9 @@ Invitation functions write email jobs to the Firestore `mail` collection in the 
 ## Subscription behavior
 
 New organizations receive an internal `pilot` subscription with a 30-day trial, 25 faculty seats, and 1,000 student seats. Backend account creation and invitation claims enforce expiration, suspension, cancellation, and seat limits. Real payment collection is intentionally not enabled until a payment provider is selected and credentials/webhooks are configured.
+
+## Individual faculty
+
+Individual educators can select **Sign up as individual faculty**, verify their email, and choose a monthly or annual package. Quizly provisions a private one-faculty workspace with a 250-student limit and keeps it locked in `pending_payment` until a payment gateway or the Quizly super administrator activates the subscription.
+
+The platform super administrator can create an independent faculty account from **Users → Independent faculty**. Choose **Subscription required** to keep the workspace locked pending payment, or **Complimentary — no charge** to activate it immediately. Platform privileges are granted only to profiles marked `isSuperAdmin` or to the migrated legacy administrator.

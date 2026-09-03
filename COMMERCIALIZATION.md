@@ -15,6 +15,7 @@
 - Faculty/student invitations, CSV batches, profile completion, and password replacement
 - Departments, programs, batches, academic terms, onboarding checklist, and activation
 - Pilot subscription state, trial expiration, and faculty/student seat enforcement
+- Individual faculty monthly/annual enrollment, isolated workspaces, pending-payment enforcement, and super-admin complimentary provisioning
 
 ## Required before a production pilot
 
