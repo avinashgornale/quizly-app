@@ -1078,11 +1078,6 @@ const TeacherApp = ({ db, setDb, user, onLogout }) => {
   const [editingQuestionId, setEditingQuestionId] = useState(null);
   const [importPreview, setImportPreview] = useState([]);
   const [importErrors, setImportErrors] = useState([]);
-  const [aiTopic, setAiTopic] = useState("");
-  const [aiSourceText, setAiSourceText] = useState("");
-  const [aiQuestionCount, setAiQuestionCount] = useState(10);
-  const [aiQuestionMix, setAiQuestionMix] = useState("20 MCQs, 5 numerical, 5 descriptive, 2 case-study questions");
-  const [aiLoading, setAiLoading] = useState(false);
   const [qrTarget, setQrTarget] = useState(null);
   const [selectedQuizId, setSelectedQuizId] = useState("all");
   const [resultSort, setResultSort] = useState("latest");
@@ -1321,55 +1316,6 @@ const TeacherApp = ({ db, setDb, user, onLogout }) => {
       setImportErrors([]);
     } catch (error) {
       alert(error.message);
-    }
-  };
-
-  const generateQuestionsWithAi = async () => {
-    if (!aiTopic.trim() && !aiSourceText.trim()) {
-      return setImportErrors(["Enter a topic or syllabus first."]);
-    }
-
-    setAiLoading(true);
-    setImportErrors([]);
-
-    try {
-      const generateQuizQuestions = httpsCallable(functions, "generateQuizQuestions");
-      const response = await generateQuizQuestions({
-          topic: aiTopic.trim(),
-          sourceText: aiSourceText.trim(),
-          count: Number(aiQuestionCount) || 10,
-          mix: aiQuestionMix.trim()
-      });
-
-      const payload = response.data || {};
-
-      const questions = (payload.questions || []).map(question => ({
-        id: genId(),
-        text: question.text,
-        caseText: question.caseText || "",
-        options: Array.isArray(question.options) ? question.options : [],
-        type: question.type || "single",
-        correctAnswer: Number(question.correctAnswer ?? 0),
-        correctAnswers: Array.isArray(question.correctAnswers) ? question.correctAnswers.map(Number) : [Number(question.correctAnswer ?? 0)],
-        expectedAnswer: question.expectedAnswer || "",
-        answerGuidelines: question.answerGuidelines || "",
-        tolerance: Number(question.tolerance) || 0,
-        points: Number(question.points) || 1,
-        negativeMarks: Number(question.negativeMarks) || 0,
-        partialMarking: Boolean(question.partialMarking),
-        difficulty: question.difficulty || "medium",
-        bloomLevel: question.bloomLevel || "understand",
-        co: question.co || "",
-        po: question.po || "",
-        tags: Array.isArray(question.tags) && question.tags.length ? question.tags : [aiTopic.trim()].filter(Boolean)
-      }));
-
-      if (!questions.length) throw new Error("AI did not return valid questions.");
-      setImportPreview(questions);
-    } catch (error) {
-      setImportErrors([error.message]);
-    } finally {
-      setAiLoading(false);
     }
   };
 
@@ -1825,12 +1771,7 @@ const TeacherApp = ({ db, setDb, user, onLogout }) => {
                   {editingQuestionId && <Btn variant="ghost" onClick={() => { setEditingQuestionId(null); setQuestionForm(emptyQuestion); }}>Cancel</Btn>}
                 </div>                <div style={{ borderTop: "1px solid #e2e8f0", marginTop: 22, paddingTop: 18 }}>
                   <h3 style={{ margin: "0 0 8px", fontSize: 15 }}>AI Question Generator</h3>
-                  <Input label="Topic" value={aiTopic} onChange={e => setAiTopic(e.target.value)} placeholder="e.g. Water, Photosynthesis, Data Structures" />
-                  <Textarea label="Syllabus / Content (optional)" value={aiSourceText} onChange={e => setAiSourceText(e.target.value)} placeholder="Paste syllabus points or content here if you want more specific MCQs..." />
-                  <Input label="Question Mix" value={aiQuestionMix} onChange={e => setAiQuestionMix(e.target.value)} placeholder="e.g. 20 MCQs, 10 numerical, 5 descriptive" />
-                  <Input label="Number of Questions" type="number" min="1" max="50" value={aiQuestionCount} onChange={e => setAiQuestionCount(e.target.value)} />
-                  <Btn size="sm" variant="purple" disabled={aiLoading} onClick={generateQuestionsWithAi}>{aiLoading ? "Generating Questions..." : "Generate with AI"}</Btn>
-                  <p style={{ fontSize: 11, color: "#64748b" }}>Enter a topic or syllabus. AI can generate MCQs, multiple-correct, numerical, descriptive, and case-study questions with difficulty and Bloom mapping.</p>
+                  <p style={{ fontSize: 11, color: "#64748b" }}>AI generation is currently unavailable because the production API secret has not been configured. Manual question creation remains available.</p>
                   {importErrors.map(message => <p key={message} style={{ color: "#dc2626", fontSize: 12 }}>{message}</p>)}
                   {importPreview.length > 0 && (
                     <div style={{ marginTop: 12 }}>
